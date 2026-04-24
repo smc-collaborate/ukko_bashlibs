@@ -98,15 +98,13 @@ function do_protoGenerate_orClean()
         for fulldir in "${dirsToReview[@]}" ; do
         pushd "${fulldir}" >/dev/null || true
             printable_dir="${fulldir#"${THIS_DIR%/}"/}"
-            if [[ "${clean_param}" == '--clean' ]] ; then
-                if [[ -d "_generated" ]] ; then
-                    echo "   Proto directory[$printable_dir] - Cleaning _generated directory"
-                    rm -rf _generated #//-
-                fi
+            if [[ "${AM_CLEANING}" == 'yes' ]] && [[ -d "_generated" ]] ; then
+                echo "   Proto directory[$printable_dir] - Cleaning _generated directory"
+                rm -rf _generated #//-
             fi
 
 
-            if [[ "${clean_param}" != '--clean' ]] ; then
+            if [[ "${AM_CLEANING}" != 'yes' ]] ; then
                 echo "   Proto directory[$printable_dir] - Generating protobuf code under _generated:"
                 for proto_file in *.proto; do
                     [[ -f "$proto_file" ]] || continue
@@ -532,19 +530,14 @@ cd "${THIS_DIR%/}" || true
 
 if [[ "$(type -t main)" != 'function' ]] ; then
 
-    if [[ "$(type -t apps_doInstallOrClean)" != 'function' ]] ; then
-        echo "❌ ERROR: No main() or apps_doInstallOrClean() function found to run in ${BASH_SOURCE[0]}"
-        exit 1
-    fi
-
     function main()
     {
         if [[ "$(type -t apps_showHeaderTitle)" == 'function' ]] ; then
             apps_showHeaderTitle
-            [[ "${clean_param:-}" == '--clean' ]] && echo "   Cleaning all outputs"
+            [[ "${AM_CLEANING:-}" == 'yes' ]] && echo "   Cleaning all outputs"
         else
 
-            if [[ "${clean_param:-}" == '--clean' ]] ; then
+            if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
                 echo "🔨 Cleaning ${APPS_NAME}"
             else
                 echo "🔨 Building ${APPS_NAME}"
@@ -569,7 +562,17 @@ if [[ "$(type -t main)" != 'function' ]] ; then
             if [[ "$(type -t apps_checkSourceValidity)" == 'function' ]] ; then
                 apps_checkSourceValidity
             fi
-            apps_doInstallOrClean
+
+            found_list=""
+            if [[ "$(type -t apps_doBuildOrClean)" == 'function' ]] ; then
+                apps_doBuildOrClean
+                found_list+='[apps_buildOrClean]'
+            fi
+            if [[ "$(type -t apps_doInstallOrClean)" == 'function' ]] ; then
+                apps_doInstallOrClean
+                found_list+='[apps_doInstallOrClean]'
+            fi
+            [[ -z "${found_list}" ]] && FATAL_FAILURE_NO_RETURN "No main(), apps_doBuildOrClean() or apps_doInstallOrClean() function found to run in ${BASH_SOURCE[0]}"
         fi
     }
 
