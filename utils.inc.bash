@@ -96,6 +96,10 @@ function asQuotedText()
     echo -n '"'
 }
 
+function extraVerboseLogging()
+{
+    true # echo "🛈  $*" >&2
+}
 
 
 # Colors for output
@@ -107,6 +111,7 @@ if [[ -t 1 ]] ; then
     export BLUE='\033[0;34m'
     export BOLD_BLUE="\033[1;34m"
     export NC='\033[0m' # No Color
+    extraVerboseLogging "Colors enabled for output"
 else
     # Disable colors if output is not a terminal (e.g., when redirected to a file)
     export RED=''
@@ -115,11 +120,12 @@ else
     export BLUE=''
     export BOLD_BLUE=''
     export NC=''
+    extraVerboseLogging "Colors disabled for output"
 fi
 
 if [[ -z "${ORIG_PWD:-}" ]] ; then
   export ORIG_PWD ; ORIG_PWD="$(pwd)"
-  echo "🛈  ORIG_PWD                   = [${ORIG_PWD}]" >&2
+  extraVerboseLogging "ORIG_PWD                   = [${ORIG_PWD}]"
 fi
 
 if [[ -z "${THIS_EXE_FROM_ORIGINAL_PWD:-}" ]] ; then
@@ -132,10 +138,10 @@ if [[ -z "${THIS_EXE_FROM_ORIGINAL_PWD:-}" ]] ; then
       THIS_EXE_FROM_ORIGINAL_PWD="./${THIS_EXE_FROM_ORIGINAL_PWD}"
     fi
   fi
-  echo "🛈  THIS_EXE_FROM_ORIGINAL_PWD = [${THIS_EXE_FROM_ORIGINAL_PWD}]" >&2
+  extraVerboseLogging "THIS_EXE_FROM_ORIGINAL_PWD = [${THIS_EXE_FROM_ORIGINAL_PWD}]"
 fi
 
 if [[ -z "${ORIG_PARAMS:-}" ]] ; then
   export ORIG_PARAMS ; ORIG_PARAMS=("$@")
-  echo "🛈  ORIG_PARAMS                = [${ORIG_PARAMS[*]}]" >&2
+  extraVerboseLogging "ORIG_PARAMS                = [${ORIG_PARAMS[*]}]"
 fi
