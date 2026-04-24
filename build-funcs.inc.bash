@@ -91,7 +91,7 @@ function do_protoGenerate_orClean()
 
     for relative_dir in . common  ; do
         for fulldir in "${THIS_DIR%/}/${relative_dir}/proto_"*/ ; do
-            echo "Checking for proto files in ${fulldir} ..."
+            #|Logging| echo "Checking for proto files in ${fulldir} ..."
             [[ -d "${fulldir}" ]] && dirsToReview+=("${fulldir}")
         done
     done
@@ -99,8 +99,10 @@ function do_protoGenerate_orClean()
         pushd "${fulldir}" >/dev/null || true
             printable_dir="${fulldir#"${THIS_DIR%/}"/}"
             if [[ "${clean_param}" == '--clean' ]] ; then
-                echo "   Proto directory[$printable_dir] - Cleaning _generated directory"
-                rm -rf _generated #//-
+                if [[ -d "_generated" ]] ; then
+                    echo "   Proto directory[$printable_dir] - Cleaning _generated directory"
+                    rm -rf _generated #//-
+                fi
             fi
 
 

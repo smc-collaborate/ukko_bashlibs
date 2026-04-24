@@ -48,7 +48,7 @@ function main()
         [[ -n "$option_working_dir" ]] && echo "WorkingDirectory=${option_working_dir}"
         echo "ExecStart=${executable_and_args[*]@Q}"
         echo "Restart=always"
-        echo "RestartSec=3"
+        echo "RestartSec=8"
         echo ""
         echo "[Install]"
         echo "WantedBy=multi-user.target"
@@ -67,14 +67,15 @@ function main()
     doRun systemctl enable "${serviceName}.service"
     doRun systemctl start  "${serviceName}.service"
     service_pid="$(systemctl show -P MainPID  "${serviceName}.service")"
-    return_value=0; systemctl is-active --quiet "${serviceName}.service" || return_value="$?"
+    sleep 1 # Give it a moment to start up before checking status
+    return_value=0; status=$(systemctl is-active "${serviceName}.service") || return_value="$?"
     if [[ "$return_value" == 0 ]] ; then
         echo "      ✓ Confirmed Running"
         echo                                          "        ┌───────────────────────────────────────────────────────────────────────"
         journalctl _PID="${service_pid}"    | sed "s/^/        │ /"
         echo                                          "        └───────────────────────────────────────────────────────────────────────"
     else
-        echo "      ❌  Not active  [$return_value]"
+        echo "      ❌  Not active  [$status:$return_value]"
         echo                                             "      ┌───────────────────────────────────────────────────────────────────────"
         systemctl status  "${serviceName}.service" | sed "s/^/      │ /"
         echo                                             "      └───────────────────────────────────────────────────────────────────────"
