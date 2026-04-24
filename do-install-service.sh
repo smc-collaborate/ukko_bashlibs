@@ -1,4 +1,8 @@
 #!/bin/bash -eu
+THIS_EXE="$(readlink -f "${BASH_SOURCE[0]}")"
+THIS_DIR="$(realpath -m "$(dirname "$THIS_EXE")")"
+
+source "${THIS_DIR%/}/utils.inc.bash"
 
 function give_help()
 {
@@ -70,10 +74,13 @@ function main()
     sleep 1 # Give it a moment to start up before checking status
     return_value=0; status=$(systemctl is-active "${serviceName}.service") || return_value="$?"
     if [[ "$return_value" == 0 ]] ; then
-        echo "      ✓ Confirmed Running"
+        echo "      ✓ Confirmed Running   [PID: $service_pid]"
         echo                                          "        ┌───────────────────────────────────────────────────────────────────────"
         journalctl _PID="${service_pid}"    | sed "s/^/        │ /"
         echo                                          "        └───────────────────────────────────────────────────────────────────────"
+        echo                                          "         Use: "
+        echo                                       -e "              • ${BOLD_BLUE:-}journalctl _PID=${service_pid} -f${NC:-} to follow the logs  (Ensure you have used 'flushCache' in the printing functions to avoid buffering delays)"
+        echo                                       -e "              • ${BOLD_BLUE:-}systemctl status ${serviceName}.service${NC:-} to check the service status"
     else
         echo "      ❌  Not active  [$status:$return_value]"
         echo                                             "      ┌───────────────────────────────────────────────────────────────────────"
@@ -140,6 +147,7 @@ while [[ "${1:-}" == "--"* ]] ; do
     fi
     shift 1 || true
 done
+
 
 serviceName="${1:-}"
 shift 1
