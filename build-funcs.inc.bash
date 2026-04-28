@@ -625,7 +625,7 @@ if [[ "$(type -t main)" != 'function' ]] ; then
                 apps_doInstallOrClean
                 found_list+='[apps_doInstallOrClean]'
             fi
-            [[ -z "${found_list}" ]] && FATAL_FAILURE_NO_RETURN "No main(), apps_doBuildOrClean() or apps_doInstallOrClean() function found to run in ${BASH_SOURCE[0]}"
+            [[ -n "${found_list}" ]] || FATAL_FAILURE_NO_RETURN "No main(), apps_doBuildOrClean() or apps_doInstallOrClean() function found to run in ${BASH_SOURCE[0]}"
         fi
     }
 
