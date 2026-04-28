@@ -69,7 +69,7 @@ function main()
     fi
     doRun systemctl daemon-reload
     doRun systemctl enable "${serviceName}.service"
-    doRun systemctl start  "${serviceName}.service"
+    doRun systemctl restart "${serviceName}.service"
     service_pid="$(systemctl show -P MainPID  "${serviceName}.service")"
     sleep 1 # Give it a moment to start up before checking status
     return_value=0; status=$(systemctl is-active "${serviceName}.service") || return_value="$?"
