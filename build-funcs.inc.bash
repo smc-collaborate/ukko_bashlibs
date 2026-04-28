@@ -485,6 +485,59 @@ function do_exeInstall_orClean()
     do_dumpInstalledExe "$_exe_name"
 }
 
+function do_remove_link()
+{
+    local link="$1"
+    local optional_unless_target="${2:-}"
+    if [[ -L "$link" ]] ; then
+        if [[ -n "${optional_unless_target}" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$optional_unless_target")" ]] ; then
+            echo "    • Link confirmed: $(displayPath "$link") -> $(displayPath "$optional_unless_target")"
+            return 0
+        fi
+        unlink "$link"
+        echo "    • Unlinked existing: $(displayPath "$link")"
+    elif [[ -e "$link" ]] ; then
+        rm -rf "$link"
+        echo "    • Removed existing file/directory: $(displayPath "$link")"
+    fi
+}
+
+function do_ensure_link()
+{
+    local link="$1"
+    local target="$2"
+    if [[ "${AM_CLEANING}" == 'yes' ]] ; then
+        do_remove_link "$link"
+        return $?
+    fi
+
+    if [[ -L "$link" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$target")" ]] ; then
+            echo "    • Link confirmed: $link -> $(displayPath "$target")"
+            return 0
+        fi
+
+    do_remove_link "$link"
+    ln -s "$target" "$link"
+    echo "    • Created link: $link -> $(displayPath "$target")"
+}
+
+function do_ensure_linked_git_checkout()
+{
+    local local_repo_link="$1"
+    local repo="$2"
+
+    if [[ "${AM_CLEANING}" == 'yes' ]] ; then
+        do_remove_link "$local_repo_link"
+        return $?
+    else
+
+        local dir
+        dir="$(git-shared-checkout "$repo")"
+
+        do_ensure_link "$local_repo_link" "$dir"
+    fi
+}
+
 function do_serviceInstall_orClean()
 {
     exe_name="${1:-}"
