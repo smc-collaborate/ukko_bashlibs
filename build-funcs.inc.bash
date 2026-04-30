@@ -70,7 +70,7 @@ function set_ENV_ROOT()
             ENV_ROOT="$(dirname "${ENV_ROOT%/}")"
         done
         if [[ -n "${failLocation}" ]] ; then
-            echo -e "❌  ERROR: Could not find requirements*.txt in ${BOLD_BLUE}${THIS_DIR}${NC} or any parent directory up to ${BOLD_BLUE}${failLocation}${NC}"
+            echo -e "❌  ERROR: Could not find requirements*.txt in ${BOLD_BLUE_STDOUT:-}${THIS_DIR}${NC_STDOUT:-} or any parent directory up to ${BOLD_BLUE_STDOUT:-}${failLocation}${NC_STDOUT:-}"
             echo    "    Define the location manually as 'ENV_ROOT' environment variable if needed."
 
             exit 1
@@ -236,11 +236,11 @@ function do_setupPython3()
         python3_subver="$(python3 --version | sed 's|^Python 3\.||g' | sed 's|\..*$||g')"
 
         if [[ "${1:-}" == '--dev' ]] ; then
-            echo -e "   Detected ${BOLD_BLUE}Python 3.${python3_subver}${NC}  -- Installing development packages"
+            echo -e "   Detected ${BOLD_BLUE_STDOUT:-}Python 3.${python3_subver}${NC_STDOUT:-}  -- Installing development packages"
             installPkgIfNeeded build-essential    #< Depending on environment, this may be needed to build some Python dependencies (e.g., 'cryptography' package)
             installPkgIfNeeded python3-dev
         else
-            echo -e "   Detected ${BOLD_BLUE}Python 3.${python3_subver}${NC}  -- Not installing development packages"
+            echo -e "   Detected ${BOLD_BLUE_STDOUT:-}Python 3.${python3_subver}${NC_STDOUT:-}  -- Not installing development packages"
         fi
     fi
 
@@ -293,7 +293,7 @@ function do_setupPythonVenv_orClean()
                     exitWithError "Failed to setup Python virtual environment: No requirements suitable file found"
                 fi
             fi
-            [[ -d .venv ]] && [[ ! -w .venv ]] && exitWithError "The virtual environment '${ENV_ROOT%/}/.venv' is not writable.\nTry ${BOLD_BLUE}sudo ${THIS_EXE_FROM_ORIGINAL_PWD:-"$0"} --clean${NC} to remove it"
+            [[ -d .venv ]] && [[ ! -w .venv ]] && exitWithError "The virtual environment '${ENV_ROOT%/}/.venv' is not writable.\nTry ${BOLD_BLUE_STDOUT:-}sudo ${THIS_EXE_FROM_ORIGINAL_PWD:-"$0"} --clean${NC_STDOUT:-} to remove it"
             python3 -m venv .venv
             if [[ -f ".venv/bin/activate" ]] ; then
                 # shellcheck disable=SC1091
@@ -364,10 +364,10 @@ function do_dumpInstalledExe()
         return 1
     fi
     if ! _version="$(${__exe_name} --version 2>/dev/null )" ; then
-        echo -e "   ❌ FAILED TO INSTALL: ${__exe_name}   Confirm installation issues with ${BOLD_BLUE}${__exe_name} --version${NC}"
+        echo -e "   ❌ FAILED TO INSTALL: ${__exe_name}   Confirm installation issues with ${BOLD_BLUE_STDOUT:-}${__exe_name} --version${NC_STDOUT:-}"
         return 1
     fi
-    echo -e "    • Installed: ${BOLD_BLUE}${_version}${NC}" | sed '1!s/^/                 /'
+    echo -e "    • Installed: ${BOLD_BLUE_STDOUT:-}${_version}${NC_STDOUT:-}" | sed '1!s/^/                 /'
 
     if [[ "${SUGGEST_HOW_TO_INSTALL_TO_ROOT:-}" == 'yes' ]] ; then
         if [[ "$_run_from_here" == "${HOME%/}/.local/bin/${__exe_name}" ]] ; then
@@ -456,11 +456,7 @@ function do_pyInstall_orClean()
 }
 
 
-function FATAL_FAILURE_NO_RETURN()
-{
-    echo "❌ FATAL FAILURE: $*"
-    exit 1
-}
+
 function do_exeInstall_orClean()
 {
     local script="$1"
@@ -534,7 +530,7 @@ function do_ensure_linked_git_checkout()
         local dir
         dir="$(git-shared-checkout "$repo")"
 
-        do_ensure_link "$local_repo_link" "$dir"
+        do_ensure_link "$local_repo_link" "${dir%/}/"
     fi
 }
 

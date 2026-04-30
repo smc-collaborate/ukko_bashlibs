@@ -103,24 +103,33 @@ function extraVerboseLogging()
 
 
 # Colors for output
+export RED='\033[0;31m'
+export GREEN='\033[0;32m'
+export YELLOW='\033[1;33m'
+export BLUE='\033[0;34m'
+export BOLD_BLUE="\033[1;34m"
+export NC='\033[0m' # No Color
+
 if [[ -t 1 ]] ; then
-    # Enable colors only if output is a terminal
-    export RED='\033[0;31m'
-    export GREEN='\033[0;32m'
-    export YELLOW='\033[1;33m'
-    export BLUE='\033[0;34m'
-    export BOLD_BLUE="\033[1;34m"
-    export NC='\033[0m' # No Color
-    extraVerboseLogging "Colors enabled for output"
-else
-    # Disable colors if output is not a terminal (e.g., when redirected to a file)
-    export RED=''
-    export GREEN=''
-    export YELLOW=''
-    export BLUE=''
-    export BOLD_BLUE=''
-    export NC=''
-    extraVerboseLogging "Colors disabled for output"
+    # Enable colors only if stdout is a terminal
+    export RED_STDOUT="$RED"
+    export GREEN_STDOUT="$GREEN"
+    export YELLOW_STDOUT="$YELLOW"
+    export BLUE_STDOUT="$BLUE"
+    export BOLD_BLUE_STDOUT="$BOLD_BLUE"
+    export NC_STDOUT="$NC"
+    extraVerboseLogging "Colors enabled for output [stdout]"
+fi
+
+if [[ -t 2 ]] ; then
+    # Enable colors only if stderr is a terminal
+    export RED_STDERR="$RED"
+    export GREEN_STDERR="$GREEN"
+    export YELLOW_STDERR="$YELLOW"
+    export BLUE_STDERR="$BLUE"
+    export BOLD_BLUE_STDERR="$BOLD_BLUE"
+    export NC_STDERR="$NC"
+    extraVerboseLogging "Colors enabled for output [stderr]"
 fi
 
 if [[ -z "${ORIG_PWD:-}" ]] ; then
@@ -145,3 +154,9 @@ if [[ -z "${ORIG_PARAMS:-}" ]] ; then
   export ORIG_PARAMS ; ORIG_PARAMS=("$@")
   extraVerboseLogging "ORIG_PARAMS                = [${ORIG_PARAMS[*]}]"
 fi
+
+function FATAL_FAILURE_NO_RETURN()
+{
+    echo "❌ FATAL FAILURE: $*"
+    exit 1
+}

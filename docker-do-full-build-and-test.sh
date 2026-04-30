@@ -129,15 +129,15 @@ function runOnHost()
         echo "Description: Run a full build and test of the annotatedData application"
         echo "             on a specified docker image."
         echo ""
-        echo -e "Usage      : ${BLUE}${RUN_EXE_FROM_ORIG_PWD} <docker-image> [--stay-in-docker] (build-parameters)${NC}"
+        echo -e "Usage      : ${BLUE_STDOUT:-}${RUN_EXE_FROM_ORIG_PWD} <docker-image> [--stay-in-docker] (build-parameters)${NC_STDOUT:-}"
         echo "             <docker-image>    : Docker image to use for testing (e.g. 'ubuntu:22.04')"
         echo "             --stay-in-docker  : Stay in the docker image after tests for further investigation"
         echo ""
-        echo -e "Example    : ${BOLD_BLUE}${RUN_EXE_FROM_ORIG_PWD} $image --stay-in-docker${NC}"
+        echo -e "Example    : ${BOLD_BLUE_STDOUT:-}${RUN_EXE_FROM_ORIG_PWD} $image --stay-in-docker${NC_STDOUT:-}"
     fi
 
-    echo -e " -> ${BOLD_BLUE}docker $(quoteIfNeeded "${docker_env_params[@]}") \\\\${NC}"
-    echo -e "    ${BOLD_BLUE}       $(quoteIfNeeded "${docker_exe_params[@]}")${NC}"
+    echo -e " -> ${BOLD_BLUE_STDOUT:-}docker $(quoteIfNeeded "${docker_env_params[@]}") \\\\${NC_STDOUT:-}"
+    echo -e "    ${BOLD_BLUE_STDOUT:-}       $(quoteIfNeeded "${docker_exe_params[@]}")${NC_STDOUT:-}"
 
     [[ -n "${give_help:-}" ]] && exit 1
 
@@ -151,7 +151,7 @@ function runOnHost()
     echo ""
     echo -e "ℹ️  Returning result code from docker: ${result_code}"
     if [[ "${STAY_IN_DOCKER:-}" != "yes" ]] ; then
-        echo -e "ℹ️  If you wanted to stay in the docker image, try: ${BOLD_BLUE}${RUN_EXE_FROM_ORIG_PWD} --stay-in-docker ${RUNNING_PARAMS[*]}${NC}"
+        echo -e "ℹ️  If you wanted to stay in the docker image, try: ${BOLD_BLUE_STDOUT:-}${RUN_EXE_FROM_ORIG_PWD} --stay-in-docker ${RUNNING_PARAMS[*]}${NC_STDOUT:-}"
     fi
     exit "$result_code"
 }

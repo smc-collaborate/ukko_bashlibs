@@ -1,0 +1,147 @@
+#!/bin/bash -eu
+
+#
+# This is a utility to checkout git repositories in a shared location (e.g. under $HOME/gits-shared) and return the path to the checkout.
+# It is designed to be used in other scripts to share git checkouts across different scripts and avoid multiple checkouts of the same repository.
+# It also supports refreshing the checkout and clearing it if it is invalid.
+# Usage: git-shared-checkout [--refresh|--clear|--quiet] <repo_path> [branch]   | --version
+#    eg: cat "$(git-shared-checkout https://github.com/Mac-H/ukko_gists)/readme.md"
+#
+# It needs to be possible to run without any other libraries (e.g. in a fresh docker image) and it should not produce any output on stdout except the path to the checkout (and error messages on stderr if needed).
+#
+GIT_SHARED_CHECKOUT_VERSION="0.0.3"
+[[ -z "${HOME:-}" ]] && SHARED_GIT_DIR="/usr/share/gits-shared"
+[[ -n "${HOME:-}" ]] && SHARED_GIT_DIR="${HOME}/gits-shared"
+
+function help()
+{
+    echo -e "Usage: $(basename "$THIS_EXE") [--refresh|--clear|--quiet] <repo_path> [branch]   | --version" >&2
+    echo -e "   eg: ${BOLD_BLUE_STDERR:-}cat \"\$($(basename "$THIS_EXE") https://github.com/Mac-H/ukko_gists)/readme.md\"${NC_STDERR:-}" >&2
+}
+function main()
+{
+    local option_is_refresh='no'
+    local option_is_erase='no'
+    local option_is_quiet='no'
+
+    [[ "${GIT_SHARED_CHECKOUT_QUIET:-}" == "yes" ]] && option_is_quiet='yes'
+
+    if [[ "${1:-}" == '--version' ]]; then
+        echo "$(basename "$THIS_EXE") version $GIT_SHARED_CHECKOUT_VERSION"
+        exit 0
+    elif [[ "${1:---help}" == '--help' ]] ; then
+        help
+        exit 0
+    fi
+
+    #
+
+    if [[ "${1:-}" == '--refresh' ]]; then
+        option_is_refresh='yes'
+        shift
+    elif [[ "${1:-}" == '--clear' ]]; then
+        option_is_erase='yes'
+        shift
+    elif [[ "${1:-}" == '--quiet' ]] || [[ "${1:-}" == '--quiet=yes' ]] ; then
+        option_is_quiet='yes'
+        shift
+    elif [[ "${1:-}" == '--quiet=no' ]] ; then
+        option_is_quiet='no'
+        shift
+    fi
+
+    local repo_path="${1:-}"
+    local branch="${2:-}"
+
+    if [[ -z "$repo_path" ]] || [[ "$repo_path" == '--'* ]]; then
+        help
+        exit 1
+    fi
+
+    repo_shorter="${repo_path%.git}"
+    repo_shorter="${repo_shorter/git@}"
+    full_dir="${SHARED_GIT_DIR%/}/${repo_shorter}"
+    [[ -z "$branch" ]] || full_dir="${full_dir}_$branch"
+
+    branch_suffix=''
+    [[ -n "$branch" ]] && branch_suffix=" [$branch]"
+    local repo_caption="${repo_shorter}${branch_suffix}"
+
+    local description="<EMPTY>"
+    if [[ -d "$full_dir" ]] ; then
+        if [[ "$option_is_refresh" == "yes" ]] || [[ "$option_is_erase" == "yes" ]] ; then
+            do_with_check  rm -rf "$full_dir" && description="<ERASED>"
+            description="<ERASED>"
+        else
+            description="$(git -C "$full_dir" describe --always --dirty)" || description="<INVALID>"
+        fi
+    fi
+    echo "$full_dir"
+    if [[ "$option_is_erase" == "yes" ]]; then
+        echo -e "$repo_caption: ${BOLD_BLUE_STDERR:-}$description:${NC_STDERR:-} ℹ️  ERASED" >&2
+        return 0
+    elif [[ "$description" == "<INVALID>" ]]; then
+        echo -e "$repo_caption: ${BOLD_RED_STDERR:-}$description:${NC_STDERR:-} -- Clearing" >&2
+        do_with_check rm -rf "$full_dir"
+    fi
+
+
+    if [ ! -d "$full_dir" ]; then
+        mkdir -p "$full_dir"
+        [[ -z "$branch" ]] && do_with_check git clone                      "$repo_path" "$full_dir"
+        [[ -z "$branch" ]] || do_with_check git clone --branch "${branch}" "$repo_path" "$full_dir"
+
+        if [[ -f "${full_dir%/}/.gitmodules" ]]; then
+            do_with_check git -C "$full_dir" submodule update --init --recursive
+        fi
+
+        if [[ -f "${full_dir%/}/.pre-commit-config.yaml" ]]; then
+            if ! command -v pre-commit >/dev/null 2>&1 ; then
+                echo -e "⚠️  pre-commit not found in PATH.  Skipping pre-commit install for $repo_caption" >&2
+            else
+                pushd "$full_dir" &>/dev/null
+                do_with_check pre-commit install # --install-hooks
+                echo "⚡ pre-commit hooks installed for $repo_caption" >&2
+                popd &>/dev/null
+            fi
+        fi
+        description="$(git -C "$full_dir" describe --always --dirty)" || description="<INVALID>"
+    fi
+
+    local suffix=''
+    [[ "$description" == *'--dirty'* ]] && suffix="${BOLD_RED_STDERR}  ⚠️  There are local changes${NC_STDERR}"
+    if [[ "$option_is_quiet" == "no" ]] || [[ -n "$suffix" ]]; then
+        echo -e "Using: ${BOLD_BLUE_STDERR}$repo_caption [$description]${NC_STDERR}$suffix" >&2
+        echo -e "       └── $full_dir" >&2
+    fi
+}
+function do_with_check()
+{
+    local caption="$*"
+
+    local caption_decorated="$*"
+    if [[ "$1" == '--caption='* ]]; then
+        caption="${1#--caption=}"
+        shift
+    else
+        caption_decorated="${BOLD_BLUE_STDERR:-}$caption${NC_STDERR:-}"
+    fi
+    local status=0
+    local suffix=''
+
+    echo -e "Running : ${caption_decorated}" >&2
+    "$@" || status=$?
+    if [[ "$status" == 0 ]] ; then
+        true #echo -e "          -- OK" >&2
+    else
+        [[ "$status" == 1 ]] || suffix=" with status $status"
+        echo -e "Ran    :${BOLD_RED_STDERR:-}$caption${NC_STDERR:-} -- Failed$suffix" >&2
+        [[ "$caption" == "$*" ]] || echo -e "Command: ${BOLD_BLUE_STDERR:-}$*${NC_STDERR:-}" >&2
+        exit 1
+    fi
+}
+THIS_EXE="$(readlink -m "${BASH_SOURCE[0]}")"
+
+[[ -t 2 ]] &&  BOLD_BLUE_STDERR="\033[1;34m" && BOLD_RED_STDERR='\033[1;31m' &&  NC_STDERR='\033[0m' # Color codes for terminal output
+
+main "$@"

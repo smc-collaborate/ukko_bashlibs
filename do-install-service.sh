@@ -79,8 +79,8 @@ function main()
         journalctl _PID="${service_pid}"    | sed "s/^/        │ /"
         echo                                          "        └───────────────────────────────────────────────────────────────────────"
         echo                                          "         Use: "
-        echo                                       -e "              • ${BOLD_BLUE:-}journalctl _PID=${service_pid} -f${NC:-} to follow the logs  (Ensure you have used 'flushCache' in the printing functions to avoid buffering delays)"
-        echo                                       -e "              • ${BOLD_BLUE:-}systemctl status ${serviceName}.service${NC:-} to check the service status"
+        echo                                       -e "              • ${BOLD_BLUE_STDOUT:-}journalctl _PID=${service_pid} -f${NC_STDOUT:-} to follow the logs  (Ensure you have used 'flushCache' in the printing functions to avoid buffering delays)"
+        echo                                       -e "              • ${BOLD_BLUE_STDOUT:-}systemctl status ${serviceName}.service${NC_STDOUT:-} to check the service status"
     else
         echo "      ❌  Not active  [$status:$return_value]"
         echo                                             "      ┌───────────────────────────────────────────────────────────────────────"

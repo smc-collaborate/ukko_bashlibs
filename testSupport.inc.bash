@@ -574,7 +574,7 @@ function commandComplete_dumpCmdInfo()
 
     local pre_gap
     # |Logging| echo "!!!!!!!!!!!(5) [$libSupport_testCmd]:libSupport_testVerificationResult=$libSupport_testVerificationResult"
-    echo -e "${PRINT_LEFT_PREFIX} │ Command: ${BOLD_BLUE}${libSupport_testCmd% | cat}${NC}"
+    echo -e "${PRINT_LEFT_PREFIX} │ Command: ${BOLD_BLUE_STDOUT:-}${libSupport_testCmd% | cat}${NC_STDOUT:-}"
     sed -e 's/\r.*\r//' -e "s|^⚠️|⚠ |g"  -e "s|^❌|✗ |g" -e "s|^ℹ️ |🛈 |g"  -e "s/^/${PRINT_LEFT_PREFIX} │  /" < "$stderr_file"
     sed -e 's/\r.*\r//' -e "s/^/${PRINT_LEFT_PREFIX} │ ❓  /" < "$failure_notes_file"
 
