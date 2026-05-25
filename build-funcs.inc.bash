@@ -404,6 +404,13 @@ function do_pyInstall_orClean()
     local _exe_name    ; _exe_name="$(basename "$_PYAPP_RUN" '.py')"
     shift 1 || true # Remove the processed argument
 
+    while [[ "${1:-}" == --uses-pkg=* ]] ; do
+        local pkg="${1#--uses-pkg=}"
+        installPkgIfNeeded "$pkg"
+        shift 1 || true
+    done
+
+
 
     if [[ "${_PYAPP_ENV}" == "_none_" ]] && [[ -f "${_PYAPP_RUN}" ]] && [[ "$*" == '' ]] ; then
         #
