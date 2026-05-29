@@ -149,10 +149,7 @@ function doSetupRawEnvironment()
     #|Extras| fi
 }
 
-THIS_EXE="$(readlink -f "${BASH_SOURCE[0]}")"
-THIS_DIR="$(realpath -m "$(dirname "$THIS_EXE")")"
-
-source "${THIS_DIR%/}/utils.inc.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/build-funcs.inc.bash"
 
 doFullBuildAndTest "$@"
 #

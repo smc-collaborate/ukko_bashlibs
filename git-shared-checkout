@@ -59,9 +59,16 @@ function main()
     fi
 
     repo_shorter="${repo_path%.git}"
-    repo_shorter="${repo_shorter/git@}"
-    full_dir="${SHARED_GIT_DIR%/}/${repo_shorter}"
-    [[ -z "$branch" ]] || full_dir="${full_dir}_$branch"
+
+    repo_shorter="${repo_path%.git}"
+    if [[ "$repo_shorter" == "https://"* ]] ; then
+        repo_shorter="${repo_shorter##https://}"
+    elif [[ "$repo_shorter" == "git@"*     ]] ; then
+        repo_shorter="${repo_shorter##git@}"
+    fi
+
+    full_dir="${SHARED_GIT_DIR%/}/${repo_shorter/://}"
+    [[ -z "$branch" ]] || full_dir="${full_dir}_branch_$branch"
 
     branch_suffix=''
     [[ -n "$branch" ]] && branch_suffix=" [$branch]"
@@ -100,7 +107,7 @@ function main()
                 echo -e "⚠️  pre-commit not found in PATH.  Skipping pre-commit install for $repo_caption" >&2
             else
                 pushd "$full_dir" &>/dev/null
-                do_with_check pre-commit install # --install-hooks
+                do_with_check pre-commit install >&2 # --install-hooks
                 echo "⚡ pre-commit hooks installed for $repo_caption" >&2
                 popd &>/dev/null
             fi
@@ -114,6 +121,7 @@ function main()
         echo -e "Using: ${BOLD_BLUE_STDERR}$repo_caption [$description]${NC_STDERR}$suffix" >&2
         echo -e "       └── $full_dir" >&2
     fi
+    exit 0
 }
 function do_with_check()
 {
