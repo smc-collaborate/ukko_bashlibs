@@ -140,8 +140,35 @@ function do_with_check()
         exit 1
     fi
 }
+
+function do_install_directly()
+{
+    local INSTALL_DIR="${HOME%/}/.local/bin" ; [[ "$EUID" -eq 0 ]] && INSTALL_DIR="/usr/local/bin"
+    local exe_path="${INSTALL_DIR%/}/$EXE_NAME"
+    if [[ "$exe_path" == "$THIS_EXE" ]]; then
+        echo "✅  This is already currently installed to $exe_path"
+        return 0
+    fi
+    if ! cp "$THIS_EXE" "$exe_path"; then
+        echo "❌  Failed to copy $THIS_EXE to $exe_path"
+        return 1
+    fi
+
+    if ! [[ ":$PATH:" == *":$INSTALL_DIR:"* ]]; then
+        echo "⚠️  '$EXE_NAME' installed to ${INSTALL_DIR@Q} but it is NOT in PATH.  Please add ${INSTALL_DIR@Q} to your PATH environment variable." >&2
+        return 1
+    fi
+     echo "✅  '$EXE_NAME' installed successfully to ${INSTALL_DIR@Q} and is available in PATH"
+}
+
 THIS_EXE="$(readlink -m "${BASH_SOURCE[0]}")"
+EXE_NAME="$(basename "$THIS_EXE")"
+
 
 [[ -t 2 ]] &&  BOLD_BLUE_STDERR="\033[1;34m" && BOLD_RED_STDERR='\033[1;31m' &&  NC_STDERR='\033[0m' # Color codes for terminal output
 
-main "$@"
+if [[ "${1:-}" == '--install' ]]; then
+    do_install_directly
+else
+    main "$@"
+fi
