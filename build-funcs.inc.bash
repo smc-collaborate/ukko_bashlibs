@@ -22,7 +22,7 @@
 # 5. If there are '.proto' files in the 'proto*' subdirectories, they will be compiled to Python using 'protoc' and the generated files will be placed in '$THIS_DIR/proto_gen'.
 #
 # 6. Customising includes:
-#     -- ENV_ROOT=                   - Use __none__ to skip creating a virtual environment and installing dependencies there.
+#     -- ENV_ROOT=                   - Use _none_ to skip creating a virtual environment and installing dependencies there.
 #                                      Otherwise assumes that the app being built is a python app that supports --version
 #     -- apps_checkSourceValidity()  - If defined, it will be called to check if the source files are valid (e.g. git-lfs files are properly pulled)
 #     -- APPS_NAME="My App"          - To set a custom name for the app being built (used in header titles and messages)
@@ -43,7 +43,6 @@
 #| │ source "${THIS_DIR%/}/../tools/build-funcs.inc.bash"
 #| ╰─────────────────────────────────────────────────────────
 ############################
-
 BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 source "${BUILD_FUNCS_DIR%/}/utils.inc.bash"
 
@@ -187,24 +186,7 @@ function do_gitLfsCheck()
         exit 13
  }
 
-#
-# Ensure tools are installed
-#
-function exitWithError()
-{
-    local msg="${*##❌}"
 
-    local lines=()
-    local prefix="❌  "
-
-    msg="$(echo -e "$msg")"
-    readarray -t lines <<< "$msg"
-    for x in "${lines[@]}" ; do
-        echo -e "$prefix$x"
-        prefix='    '
-    done
-    exit 1
-}
 function setupBuildEnvironment()
 {
     [[ "$(type -t apps_doSetupBuildEnvironment)" != 'function' ]] && [[ ! -f "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] && return 0 # No setup needed
@@ -218,11 +200,11 @@ function setupBuildEnvironment()
 
     {
         if [[ "$(type -t apps_doSetupBuildEnvironment)" == 'function' ]] ; then
-            apps_doSetupBuildEnvironment                                  || exitWithError "❌  Failed to setup build environment[apps_doSetupBuildEnvironment()]: Please check the output above."
+            apps_doSetupBuildEnvironment                                  || FATAL_FAILURE_NO_RETURN "❌  Failed to setup build environment[apps_doSetupBuildEnvironment()]: Please check the output above."
         fi
         if [[ -f "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] ; then
-            [[  -x "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] || exitWithError "❌  Failed to smpetup build environment[${THIS_DIR%/}/tools/do-setup-build-environment.sh]: Not executable"
-            "${THIS_DIR%/}/tools/do-setup-build-environment.sh"           || exitWithError "❌  Failed to setup build environment[${THIS_DIR%/}/tools/do-setup-build-environment.sh]: Please check the output above."
+            [[  -x "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] || FATAL_FAILURE_NO_RETURN "❌  Failed to smpetup build environment[${THIS_DIR%/}/tools/do-setup-build-environment.sh]: Not executable"
+            "${THIS_DIR%/}/tools/do-setup-build-environment.sh"           || FATAL_FAILURE_NO_RETURN "❌  Failed to setup build environment[${THIS_DIR%/}/tools/do-setup-build-environment.sh]: Please check the output above."
         fi
     } | sed 's/^/   │ /'
     [[ "${PIPESTATUS[0]}" == 0 ]] || exit 1
@@ -290,10 +272,10 @@ function do_setupPythonVenv_orClean()
                     requirements_fname="requirements-default.txt"
                     echo "      • Using '$requirements_fname' as fallback"
                 else
-                    exitWithError "Failed to setup Python virtual environment: No requirements suitable file found"
+                    FATAL_FAILURE_NO_RETURN "Failed to setup Python virtual environment: No requirements suitable file found"
                 fi
             fi
-            [[ -d .venv ]] && [[ ! -w .venv ]] && exitWithError "The virtual environment '${ENV_ROOT%/}/.venv' is not writable.\nTry ${BOLD_BLUE_STDOUT:-}sudo ${THIS_EXE_FROM_ORIGINAL_PWD:-"$0"} --clean${NC_STDOUT:-} to remove it"
+            [[ -d .venv ]] && [[ ! -w .venv ]] && FATAL_FAILURE_NO_RETURN "The virtual environment '${ENV_ROOT%/}/.venv' is not writable.\nTry ${BOLD_BLUE_STDOUT:-}sudo ${THIS_EXE_FROM_ORIGINAL_PWD:-"$0"} --clean${NC_STDOUT:-} to remove it"
             python3 -m venv .venv
             if [[ -f ".venv/bin/activate" ]] ; then
                 # shellcheck disable=SC1091
@@ -302,7 +284,7 @@ function do_setupPythonVenv_orClean()
                 # shellcheck disable=SC1091
                 source .venv/local/bin/activate # to enter the virtual environment (some virtualenv versions put it here)
             else
-                exitWithError "Failed to setup Python virtual environment\nActivate script not found after creating virtual environment"
+                FATAL_FAILURE_NO_RETURN "Failed to setup Python virtual environment\nActivate script not found after creating virtual environment"
             fi
 
 
@@ -321,18 +303,10 @@ function do_setupPythonVenv_orClean()
                 true
             fi
         } # | sed 's/^/   │ /'
-        [[ "${PIPESTATUS[0]}" == 0 ]] || exitWithError "❌  Failed to setup Python virtual environment: Please check the output above."
+        [[ "${PIPESTATUS[0]}" == 0 ]] || FATAL_FAILURE_NO_RETURN "❌  Failed to setup Python virtual environment: Please check the output above."
         echo "   └─ Done"
     }
     popd >/dev/null || true
-}
-function sudoIfNeeded() {
-    export DEBIAN_FRONTEND=noninteractive
-    if [[ "$(id -u)" -ne 0 ]] ; then
-        sudo "$@"
-    else
-        "$@"
-    fi
 }
 
 function installPkgIfNeeded()
@@ -476,52 +450,13 @@ function do_exeInstall_orClean()
     _exe_name="${_exe_name%.*}" # Remove extension for the installed executable name
 
 
-    local _EXE_INSTALL_LINK="${INSTALL_DIR}/${_exe_name}"
+    local link="${INSTALL_DIR}/${_exe_name}"
 
-    do_clearDestinationFile "$_PYAPP_INSTALL_SOURCE" || return 1
-    [[ "${AM_CLEANING}" == 'yes' ]] && return 0
-
-    [[ -f "$_EXE_RUN" ]] || FATAL_FAILURE_NO_RETURN "Executable not found: $_EXE_RUN"
-
-    ln -s "$_EXE_RUN" "$_EXE_INSTALL_LINK"
-    echo "    • Linked: $(displayPath "$_EXE_INSTALL_LINK")  -> $(displayPath "$_EXE_RUN")"
-    do_dumpInstalledExe "$_exe_name"
-}
-
-function do_remove_link()
-{
-    local link="$1"
-    local optional_unless_target="${2:-}"
-    if [[ -L "$link" ]] ; then
-        if [[ -n "${optional_unless_target}" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$optional_unless_target")" ]] ; then
-            echo "    • Link confirmed: $(displayPath "$link") -> $(displayPath "$optional_unless_target")"
-            return 0
-        fi
-        unlink "$link"
-        echo "    • Unlinked existing: $(displayPath "$link")"
-    elif [[ -e "$link" ]] ; then
-        rm -rf "$link"
-        echo "    • Removed existing file/directory: $(displayPath "$link")"
-    fi
-}
-
-function do_ensure_link()
-{
-    local link="$1"
-    local target="$2"
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         do_remove_link "$link"
-        return $?
+    else
+        do_ensure_link "$link" "$_EXE_RUN" && do_dumpInstalledExe "$_exe_name"
     fi
-
-    if [[ -L "$link" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$target")" ]] ; then
-            echo "    • Link confirmed: $link -> $(displayPath "$target")"
-            return 0
-        fi
-
-    do_remove_link "$link"
-    ln -s "$target" "$link"
-    echo "    • Created link: $link -> $(displayPath "$target")"
 }
 
 function do_ensure_linked_git_checkout()
@@ -565,6 +500,20 @@ function do_serviceInstall_orClean()
     return 1
 }
 
+function do_systemdEntry()
+{
+    fail_msg=""
+    if [[ "${AM_CLEANING}" == 'yes' ]] ; then
+        sudoIfNeeded "${BUILD_FUNCS_DIR%/}/do-install-service.sh" --remove --files "$@" || fail_msg="remove"
+    else
+        sudoIfNeeded "${BUILD_FUNCS_DIR%/}/do-install-service.sh"          --files "$@"|| fail_msg="install"
+    fi
+
+    [[ -z "$fail_msg" ]] && return 0
+
+    echo "❌ Failed to $fail_msg systemd entry: $*"
+    return 1
+}
 function do_serviceInstall_py_orClean()
 {
     local script="${1:-}"

@@ -7,23 +7,18 @@
 #
 function displayPath()
 {
+    local orig
     local result
-    local other
+    local relpath
 
-    #|x|echo "[displayPath $*]"
-    result="$(realpath "${1}")"
-    other="$(realpath --relative-to="${ORIG_PWD%/}/" "${result}")"
+    orig="$(realpath "${1}")"
+    relpath="$(realpath --relative-to="${ORIG_PWD%/}/" "${orig}")"
+    result="${orig/#$HOME/\~}"
 
-    result="${result/#$HOME/\~}"
+    [[ "${#result}" -gt  "${#relpath}" ]] && result="$relpath"
 
-
-    #|x|echo "[so_far:$result|other:$other]"
-
-    [[ "${#result}" -gt  "${#other}" ]] && result="$other"
-
-
-
-    echo "$result"
+    echo -n "$result"
+    #|Logging| echo -n "[displayPath $*][real=$orig][relpath=${ORIG_PWD}+$relpath]"
 }
 
 function relativeToOrigPwd()
@@ -133,8 +128,11 @@ if [[ -t 2 ]] ; then
 fi
 
 if [[ -z "${ORIG_PWD:-}" ]] ; then
+  #|Logging| echo "🛈  Setting ORIG_PWD to [$(pwd)]"
   export ORIG_PWD ; ORIG_PWD="$(pwd)"
   extraVerboseLogging "ORIG_PWD                   = [${ORIG_PWD}]"
+#|Logging|else
+#|Logging|  echo "🛈  ORIG_PWD already set to [${ORIG_PWD}]"
 fi
 
 if [[ -z "${THIS_EXE_FROM_ORIGINAL_PWD:-}" ]] ; then
@@ -155,8 +153,142 @@ if [[ -z "${ORIG_PARAMS:-}" ]] ; then
   extraVerboseLogging "ORIG_PARAMS                = [${ORIG_PARAMS[*]}]"
 fi
 
+
 function FATAL_FAILURE_NO_RETURN()
 {
-    echo "❌ FATAL FAILURE: $*"
+    local msg="${*##❌}"
+
+    local lines=()
+    local prefix="❌  FATAL FAILURE: "
+
+    msg="$(echo -e "$msg")"
+    readarray -t lines <<< "$msg"
+    for x in "${lines[@]}" ; do
+        echo -e "$prefix$x"
+        prefix='    '
+    done
     exit 1
+}
+if [[ -z "${THIS_EXE:-}" ]] ; then
+    THIS_EXE="${THIS_EXE_FROM_ORIGINAL_PWD}"
+    if [[ "${THIS_EXE}" == '../' ]] || [[ "${THIS_EXE}" == './' ]] ; then
+        THIS_EXE="${ORIG_PWD%/}/${THIS_EXE}"
+    fi
+
+    THIS_EXE="$(realpath -m "${THIS_EXE}")"
+fi
+[[ -n "${THIS_DIR:-}" ]] || THIS_DIR="$(realpath -m "$(dirname "${THIS_EXE}")")"
+
+
+overallBashResult=0
+function doRun()
+{
+    local silent_if_ok=no
+
+    if [[ "${1:-}" == "--silent-if-ok" ]] ; then
+        silent_if_ok=yes
+        shift 1 || true
+    fi
+
+    local result=0
+
+    local tmpfile ; tmpfile="$(mktemp "/tmp/doRun.XXXXXX")"
+
+
+    "$@" &> "$tmpfile" || result=$?
+
+    if [[ "$result" == 0 ]]; then
+        [[ "$silent_if_ok" == "yes" ]] && return 0
+        echo "      ✓ Ran: $*"
+    else
+        echo "      ✗ Ran: $*"
+        echo "        ❌ Responded with Failure: $result"
+        # shellcheck disable=SC2034
+        overallBashResult="$result"
+    fi
+    if [[ -s "$tmpfile" ]] ; then
+           echo "             ┌───────────────────────────────────────────────────────────────────────"
+        sed "s/^/             │ /" < "$tmpfile"
+           echo "             └───────────────────────────────────────────────────────────────────────"
+    fi
+    rm -f "$tmpfile"
+    return $result
+}
+
+function doWithSuccessMsg()
+{
+    local success_msg="$1"
+
+    shift 1 || true
+
+    doRun --silent-if-ok "$@" || return $?
+
+    echo "$success_msg"
+}
+
+function sudoIfNeeded() {
+    export DEBIAN_FRONTEND=noninteractive
+    if [[ "$(id -u)" -ne 0 ]] ; then
+        sudo sudo ORIG_PWD="${ORIG_PWD:-}" "$@"
+    else
+        "$@"
+    fi
+}
+
+
+function do_remove_link()
+{
+    local link="$1"
+    local optional_unless_target="${2:-}"
+    if [[ -L "$link" ]] ; then
+        if [[ -n "${optional_unless_target}" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$optional_unless_target")" ]] ; then
+            echo "    • Link confirmed: $(displayPath "$link") -> $(displayPath "$optional_unless_target")"
+        else
+            doWithSuccessMsg "    • Unlinked existing: $(displayPath "$link")"  unlink "$link"  || return $?
+        fi
+    elif [[ -e "$link" ]] ; then
+        doWithSuccessMsg "    • Removed existing file/directory: $(displayPath "$link")"  rm -rf "$link" || return $?
+    fi
+}
+
+function do_ensure_link()
+{
+    local link="$1"
+    local target="$2"
+
+    if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
+        do_remove_link "$link" || return $?
+    elif [[ -L "$link" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$target")" ]] ; then
+        echo "    • Link confirmed: $link -> $(displayPath "$target")"
+    else
+        do_remove_link "$link" || return $?
+        doWithSuccessMsg "    • Created link: $link -> $(displayPath "$target")"  ln -s "$target" "$link" || return $?
+    fi
+
+    return 0
+}
+
+function do_ensure_file_set()
+{
+    local dest_fname="$1"
+    local src_fname="$2"
+    local gave_success_msg="no"
+
+    if [[ -L "$dest_fname" ]] || [[ ! -f "$dest_fname" ]] || ! cmp --silent "$dest_fname" "$src_fname" ; then
+        do_remove_link "$dest_fname"  || return $?
+        doWithSuccessMsg "    • Updated file: $(displayPath "$dest_fname")"  cp "$src_fname" "$dest_fname" || return $?
+        gave_success_msg='yes'
+    fi
+
+
+    local src_attr ; src_attr=$(stat --printf="%a" "$src_fname")
+    local dst_attr ; dst_attr=$(stat --printf="%a" "$dest_fname")
+    if [[ "$src_attr" != "$dst_attr" ]] ; then
+        doWithSuccessMsg "    • Updated permissions for $(displayPath "$dest_fname") : $dst_attr -> $src_attr"  chmod "$src_attr" "$dest_fname" || return $?
+        gave_success_msg='yes'
+    fi
+
+
+    [[ "$gave_success_msg" == 'yes' ]] || echo "    • File confirmed: $(displayPath "$dest_fname")"
+    return 0
 }

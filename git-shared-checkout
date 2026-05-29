@@ -59,9 +59,10 @@ function main()
     fi
 
     repo_shorter="${repo_path%.git}"
-    repo_shorter="${repo_shorter/git@}"
+    [[ "$repo_shorter" == "https://"* ]] || repo_shorter="${repo_shorter/https:\/\//}"
+    [[ "$repo_shorter" == "git@"*     ]] || repo_shorter="${repo_shorter/git@}"
     full_dir="${SHARED_GIT_DIR%/}/${repo_shorter}"
-    [[ -z "$branch" ]] || full_dir="${full_dir}_$branch"
+    [[ -z "$branch" ]] || full_dir="${full_dir}_branch_$branch"
 
     branch_suffix=''
     [[ -n "$branch" ]] && branch_suffix=" [$branch]"
