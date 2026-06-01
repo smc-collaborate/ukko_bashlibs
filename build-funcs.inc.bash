@@ -79,7 +79,7 @@ function set_ENV_ROOT()
 
 set_ENV_ROOT
 
-[[ -z "${SUGGEST_HOW_TO_INSTALL_TO_ROOT:-}" ]] && SUGGEST_HOW_TO_INSTALL_TO_ROOT=yes
+[[ -z "${SUGGEST_HOW_TO_INSTALL_TO_ROOT:-}" ]] && SUGGEST_HOW_TO_INSTALL_TO_ROOT=no
 
 function do_protoGenerate_orClean()
 {
