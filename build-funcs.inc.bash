@@ -531,7 +531,16 @@ function do_serviceInstall_py_orClean()
 
 cd "${THIS_DIR%/}" || true
 
+function git_with_location_params_nice()
+{
+    local git_location="${1:-}"
+    local path
 
+    path="$(displayPath "${git_location}")"
+
+    echo -n "git"
+    [[ "${path}" == "." ]] || echo -n " -C $(quoteIfNeeded "${path}")"
+}
 
 if [[ "$(type -t main)" != 'function' ]] ; then
 
@@ -549,6 +558,14 @@ if [[ "$(type -t main)" != 'function' ]] ; then
             fi
         fi
 
+        if [[ "${AM_CLEANING:-}" != 'yes' ]] && [[ "${ENSURE_SUBMODULES_ARE_CLONED:-yes}" == 'yes' ]] ;   then
+            # shellcheck disable=SC1091
+            if git -C "${THIS_DIR}" submodule 2>/dev/null | grep '^-' ; then
+                echo -e "⚠️  Submodules not loaded.  Please use: '${BOLD_BLUE_STDOUT}$(git_with_location_params_nice "${THIS_DIR}") submodule update --init --recursive${NC_STDOUT}'"
+                echo    "    (You could also have used 'git clone --recurse-submodules' when cloning originally)"
+                exit 3
+            fi
+        fi
         pyApp_cleanIfNeeded
 
         if [[ " $* " == *" --only=source_generate "* ]] ; then
