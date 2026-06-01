@@ -46,7 +46,7 @@ function install_and_start_service()
     fi
 
     {
-        if [[ -z "$option_fname_service" ]] ; then
+        if [[ -n "$option_fname_service" ]] ; then
             cat "$option_fname_service"
         else
             echo "[Unit]"
@@ -156,6 +156,7 @@ option_user=''
 option_working_dir=''
 option_show_full=yes
 option_enable_files_only=no
+option_fname_service=''
 while [[ "${1:-}" == "--"* ]] ; do
     if [[ "${1:-}" == "--remove" ]] ; then
         option_remove=yes
@@ -178,10 +179,10 @@ done
 
 if [[ "$option_enable_files_only" == "yes" ]] ; then
     install_files_and_enable_only "$@"
-elif [[ -n "$option_fname_service" ]] ; then
+elif [[ -n "${option_fname_service:-}" ]] ; then
     serviceName="$(basename "$option_fname_service" .service)"
 
-    install_and_start_service
+    install_and_start_service "$@"
 else
     serviceName="${1:-}"
     shift 1 || true
