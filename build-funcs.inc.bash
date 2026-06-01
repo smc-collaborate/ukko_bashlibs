@@ -81,6 +81,118 @@ set_ENV_ROOT
 
 [[ -z "${SUGGEST_HOW_TO_INSTALL_TO_ROOT:-}" ]] && SUGGEST_HOW_TO_INSTALL_TO_ROOT=no
 
+########################################################################################################################
+#
+# ROS
+#
+export ROS_SOURCING=()
+export ROS_DISTRO="${ROS_DISTRO:-}"
+
+function setRosDistroIfNeeded()
+{
+    [[ "${AM_CLEANING:-}" == 'yes' ]] && return 0
+    [[ -n "${ROS_DISTRO:-}" ]]  && return 0
+
+    readarray -t distros <<< "$(find /opt/ros/ -maxdepth 1 -mindepth 1 -type d || true)"
+
+    if [[ ${#distros[@]} -gt 1 ]] ; then
+        echo "❌  Multiple ROS distros found in /opt/ros/:"
+        for d in "${distros[@]}" ; do
+            echo "    • ${d##*/}"
+        done
+        echo "    Please set the ROS_DISTRO environment variable to one of the above distros to continue."
+        exit 1
+    elif [[ ${#distros[@]} -eq 0 ]] ; then
+        echo "❌  No ROS distros found in /opt/ros/"
+        exit 1
+    else
+        export ROS_DISTRO="${ROS_DISTRO:-${distros[0]##*/}}"
+        echo "ℹ️  Detected ROS_DISTRO: ${BOLD_BLUE_STDOUT:-}${ROS_DISTRO}${NC_STDOUT:-}"
+    fi
+}
+
+function do_pyRosFile()
+{
+
+    local py_file="$1"
+    shift 1 || true
+
+
+    local py_run_params=()
+    local pkg_args=()
+    for arg in "$@"; do
+        if [[ "$arg" == --ros-pkg=* ]]; then
+            pkg_args+=( "${arg#*=}" )
+        else
+            py_run_params+=( "$arg" )
+        fi
+
+    done
+
+    setRosDistroIfNeeded
+    export ROS_SOURCING=( "source /opt/ros/${ROS_DISTRO}/setup.bash" )
+    export ROS_PACKAGES=()
+
+    do_rosPackages "${pkg_args[@]}"
+
+    do_pyInstall_orClean "$py_file" --source-start "${ROS_SOURCING[@]}" --source-end "${py_run_params[@]}" "${py_run_params[@]}"
+}
+
+function do_rosPackages()
+{
+    setRosDistroIfNeeded
+
+
+
+    if false ; then
+        echo "🔨  ROS2 Installation"
+        installPkgIfNeeded python3-empy
+        installPkgIfNeeded python3-rosdep
+        installPkgIfNeeded python3-colcon-common-extensions
+        #installPkgIfNeeded python3-ros-build-tools
+        #installPkgIfNeeded colcon-ros-bundle
+    fi
+
+    [[ -z "${ROS_PACKAGES:-}" ]] && export ROS_PACKAGES=()
+    [[ -z "${ROS_SOURCING:-}" ]] && export ROS_SOURCING=( "source /opt/ros/${ROS_DISTRO}/setup.bash" )
+
+    for package_dir in "$@" ; do
+
+        if [[ ! -d "$package_dir" ]] ; then
+            echo "❌  do_rosPackages : Failed to change directory to '$package_dir'" >&2
+            return 1
+        fi
+
+        local dirname ; dirname="$(realpath -m "$package_dir")"
+
+        local fname="${dirname}/install/local_setup.bash"
+        ROS_SOURCING+=( "source ${fname@Q}" )
+
+        ROS_PACKAGES+=(  "${dirname}" )
+
+        module_name="$(basename "$package_dir")"
+
+        if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
+            echo "   🔨  ROS2 package: $module_name - Cleaning build artifacts"
+            rm -rf build install log
+            find . -type d -name __pycache__ -print0 | xargs -0 rm -rf
+            echo "Cleaned build, install, log & __pycache__ directories $* (${package_dir})"
+        else
+            echo "   🔨  Building ROS2 package: ${module_name} $* (in dir: ${package_dir})"
+            set +u
+            # shellcheck disable=SC1090
+            source "/opt/ros/${ROS_DISTRO}/setup.bash"
+            set -u
+            [[ -d "${package_dir%/}/src" ]] && rosdep install -i --from-path "${package_dir%/}/src"  -y
+            colcon build --packages-select "${module_name}" --base-paths "${package_dir%/}"
+        fi
+    done
+}
+
+#
+########################################################################################################################
+
+
 function do_protoGenerate_orClean()
 {
     local msg_on_none_found="${1:-}"
@@ -140,7 +252,7 @@ function do_protoGenerate_orClean()
 
 function pyApp_cleanIfNeeded()
 {
-    if [[ "${clean_param}" == '--clean' ]] ; then
+    if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         echo "   Cleaning python cache files" # from $(pwd)"
 
         find . -name '*.pyc' -delete
@@ -152,6 +264,7 @@ function pyApp_cleanIfNeeded()
 
 function do_gitLfsCheck()
 {
+    [[ "${AM_CLEANING:-}" == 'yes' ]] && return 0
     local file_name="$1"
     local expected_size="${2:-}"
 
@@ -189,9 +302,14 @@ function do_gitLfsCheck()
 
 function setupBuildEnvironment()
 {
+    if [[ " $* " == *" --only=source_generate "* ]] ; then
+        echo "   Only generating sources, not generating applications or build virtual environments"
+        return 0
+    fi
+
     [[ "$(type -t apps_doSetupBuildEnvironment)" != 'function' ]] && [[ ! -f "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] && return 0 # No setup needed
 
-    if [[ "${clean_param}" == '--clean' ]] ; then
+    if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         echo "   Clearing   Build Environment"
     else
         echo "   Setting up Build Environment"
@@ -245,7 +363,7 @@ function do_setupPythonVenv_orClean()
 
     [[ "${ENV_ROOT_SETUP_SKIP:-}" == "${ENV_ROOT}" ]] && echo "   Using Python .venv: $ENV_ROOT" && return 0
 
-    if [[ "${clean_param}" == '--clean' ]] ; then
+    if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         echo "   Clearing virtual environment in ${ENV_ROOT%/}/.venv" | sed "s|$HOME|~|g"
         rm -rf "${ENV_ROOT%/}/.venv" || true
         return 0
@@ -311,8 +429,7 @@ function do_setupPythonVenv_orClean()
 
 function installPkgIfNeeded()
 {
-    [[ "${clean_param:-}" == '--clean' ]] && return 0
-
+    [[ "${AM_CLEANING:-}" == 'yes' ]] && return 0
     local package="$1"
 
     if [[ -z "$package" ]] ; then
@@ -371,6 +488,8 @@ function do_clearDestinationFile()
     fi
 }
 
+
+
 function do_pyInstall_orClean()
 {
     local _PYAPP_RUN   ; _PYAPP_RUN="$(realpath -m "${1}")"
@@ -417,6 +536,22 @@ function do_pyInstall_orClean()
         # shellcheck disable=SC2016
         echo "export PYAPP_RUN=\"${_PYAPP_RUN}\""
 
+        echo ''
+
+        if [[ "${1:-}" == '--source-start' ]] ; then
+            echo 'set +u'
+
+            shift 1 || true
+            for arg in "$@"; do
+                shift 1 || true
+                if [[ "$arg" == '--source-end' ]] ; then
+                    break
+                fi
+                echo "$arg"
+            done
+            echo 'set -u'
+        fi
+
         #| echo 'echo " • PYAPP_INSTALL_SOURCE="$(realpath -m "${BASH_SOURCE[0]}")""'
         #| echo 'echo " • PYAPP_ENV=\"${PYAPP_ENV}\""'
         #| echo 'echo " • PYAPP_RUN=\"${PYAPP_RUN}\""'
@@ -459,6 +594,25 @@ function do_exeInstall_orClean()
     fi
 }
 
+function do_ensure_link()
+{
+    local link="$1"
+    local target="$2"
+    if [[ "${AM_CLEANING}" == 'yes' ]] ; then
+        do_remove_link "$link"
+        return $?
+    fi
+
+    if [[ -L "$link" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$target")" ]] ; then
+            echo "    • Link confirmed: $link -> $(displayPath "$target")"
+            return 0
+        fi
+
+    do_remove_link "$link"
+    mkdir -p "$(dirname "$link")"
+    ln -s "$target" "$link"
+    echo "    • Created link: $link -> $(displayPath "$target")"
+}
 function do_ensure_linked_git_checkout()
 {
     local local_repo_link="$1"
@@ -575,7 +729,7 @@ if [[ "$(type -t main)" != 'function' ]] ; then
             do_protoGenerate_orClean "    ⚠️  No proto files found - No sources generated"
         else
             #|x|echo "   ℹ️ Generating build environment etc etc etc ...  (Params: $*)"
-            setupBuildEnvironment
+            setupBuildEnvironment "$@"
 
             do_protoGenerate_orClean
 
@@ -603,7 +757,7 @@ fi
 if [[ "${1:-}" == '--clean' ]] || [[ "${1:-}" == '--fresh' ]] || [[ "${1:-}" == '--remove' ]] ; then
     orig_pram="${1:-}"
     shift || true # Remove the first argument if it is --clean or --fresh
-    clean_param="--clean"
+    export clean_param="--clean" #<Deprecated : Use $AM_CLEANING instead
     export AM_CLEANING='yes'
     main "$@"
     if [[ "${orig_pram:-}" == '--fresh' ]] ; then
@@ -613,7 +767,7 @@ if [[ "${1:-}" == '--clean' ]] || [[ "${1:-}" == '--fresh' ]] || [[ "${1:-}" == 
         exit 0
     fi
 fi
-clean_param=""
+export clean_param="" #<Deprecated : Use $AM_CLEANING instead
 export AM_CLEANING='no'
 
 main "$@"
