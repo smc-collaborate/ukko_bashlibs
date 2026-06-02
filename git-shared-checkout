@@ -9,13 +9,13 @@
 #
 # It needs to be possible to run without any other libraries (e.g. in a fresh docker image) and it should not produce any output on stdout except the path to the checkout (and error messages on stderr if needed).
 #
-GIT_SHARED_CHECKOUT_VERSION="0.0.3"
+GIT_SHARED_CHECKOUT_VERSION="0.0.4"
 [[ -z "${HOME:-}" ]] && SHARED_GIT_DIR="/usr/share/gits-shared"
 [[ -n "${HOME:-}" ]] && SHARED_GIT_DIR="${HOME}/gits-shared"
 
 function help()
 {
-    echo -e "Usage: $(basename "$THIS_EXE") [--refresh|--clear|--quiet] <repo_path> [branch]   | --version" >&2
+    echo -e "Usage: $(basename "$THIS_EXE") [--refresh|--clear|--quiet] <repo_path> [branch] [--hash=<commit_hash>]  | --version" >&2
     echo -e "   eg: ${BOLD_BLUE_STDERR:-}cat \"\$($(basename "$THIS_EXE") https://github.com/Mac-H/ukko_gists)/readme.md\"${NC_STDERR:-}" >&2
 }
 function main()
@@ -52,7 +52,12 @@ function main()
 
     local repo_path="${1:-}"
     local branch="${2:-}"
+    local commit_hash=''
 
+    if [[ "$branch" == --hash=* ]]; then
+        commit_hash="${branch#--hash=}"
+        branch=''
+    fi
     if [[ -z "$repo_path" ]] || [[ "$repo_path" == '--'* ]]; then
         help
         exit 1
@@ -69,6 +74,7 @@ function main()
 
     full_dir="${SHARED_GIT_DIR%/}/${repo_shorter/://}"
     [[ -z "$branch" ]] || full_dir="${full_dir}_branch_$branch"
+    [[ -z "$commit_hash" ]] || full_dir="${full_dir}_commit_${commit_hash}"
 
     branch_suffix=''
     [[ -n "$branch" ]] && branch_suffix=" [$branch]"
@@ -92,12 +98,11 @@ function main()
         do_with_check rm -rf "$full_dir"
     fi
 
-
     if [ ! -d "$full_dir" ]; then
         mkdir -p "$full_dir"
         [[ -z "$branch" ]] && do_with_check git clone                      "$repo_path" "$full_dir"
         [[ -z "$branch" ]] || do_with_check git clone --branch "${branch}" "$repo_path" "$full_dir"
-
+        [[ -z "$commit_hash" ]] || do_with_check git -C "$full_dir" checkout "${commit_hash}"
         if [[ -f "${full_dir%/}/.gitmodules" ]]; then
             do_with_check git -C "$full_dir" submodule update --init --recursive
         fi

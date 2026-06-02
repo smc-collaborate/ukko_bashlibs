@@ -348,6 +348,8 @@ function do_setupPython3()
         else
             echo -e "   Detected ${BOLD_BLUE_STDOUT:-}Python 3.${python3_subver}${NC_STDOUT:-}  -- Not installing development packages"
         fi
+
+        export PYTHON_VERSION="3.${python3_subver}"
     fi
 
     if [[  "${ENV_ROOT}" != "_none_" ]] ; then
@@ -435,15 +437,30 @@ function do_setupPythonVenv_orClean()
 function installPkgIfNeeded()
 {
     [[ "${AM_CLEANING:-}" == 'yes' ]] && return 0
-    local package="$1"
 
-    if [[ -z "$package" ]] ; then
-        echo "❌  installPkgIfNeeded called with empty package name"
+    if [[ "$*" == 0 ]] ; then
+        echo "❌  installPkgIfNeeded : Called without package name(s)"
         return 1
-    elif ! dpkg -s "$package" >/dev/null 2>&1 ; then
-        echo "⚡  $package needs to be installed"
-        sudoIfNeeded apt-get install -y "$package"
     fi
+
+
+    for package_filter in "$@" ; do
+        local _packages=()
+
+        # There isn't really a good alternative to 'apt list' like this ..
+        readarray -t _packages <<< "$(apt list "${package_filter}" 2>/dev/null | grep '/' | awk -F/ '{print $1}')"
+        if [[ "${#_packages[@]}" == 0 ]] ; then
+            echo "❌  installPkgIfNeeded ${package_filter@Q} :  No matching packages found"
+            return 1
+        fi
+
+        for package in "${_packages[@]}" ; do
+            if ! dpkg -s "$package" >/dev/null 2>&1 ; then
+                echo "⚡  $package needs to be installed"
+                sudoIfNeeded apt-get install -y "$package"
+            fi
+        done
+    done
 }
 
 function do_dumpInstalledExe()
@@ -623,7 +640,7 @@ function do_ensure_link()
 function do_ensure_linked_git_checkout()
 {
     local local_repo_link="$1"
-    local repo="$2"
+    shift 1 || true
 
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         do_remove_link "$local_repo_link"
@@ -631,7 +648,7 @@ function do_ensure_linked_git_checkout()
     else
 
         local dir
-        dir="$(git-shared-checkout "$repo")"
+        dir="$(git-shared-checkout "$@" )"
 
         do_ensure_link "$local_repo_link" "${dir%/}/"
     fi
