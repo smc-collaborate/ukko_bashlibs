@@ -331,6 +331,7 @@ function setupBuildEnvironment()
 
 function do_setupPython3()
 {
+    do_setupPython3_Done='yes'
     installPkgIfNeeded python3
     if [[ "$AM_CLEANING" != 'yes' ]] ; then
         python3_subver="$(python3 --version | sed 's|^Python 3\.||g' | sed 's|\..*$||g')"
@@ -405,9 +406,9 @@ function do_setupPythonVenv_orClean()
                 FATAL_FAILURE_NO_RETURN "Failed to setup Python virtual environment\nActivate script not found after creating virtual environment"
             fi
 
-
-            echo "   Installing requirements from ${requirements_fname}"
-            pip install -r "${requirements_fname}" # | grep -v '^Requirement already satisfied:' || true
+            echo "   │  Installing requirements from ${requirements_fname}"
+            pip install -r "${requirements_fname}" | grep -v '^Requirement already satisfied:' | sed 's|^|   │ |'
+            [[ "${PIPESTATUS[0]}" == 0 ]] || FATAL_FAILURE_NO_RETURN "❌  pip install failure: Please check the output above."
 
             if [[ -d "/usr/share/fonts/truetype/dejavu" ]] ; then
                 #
@@ -420,8 +421,7 @@ function do_setupPythonVenv_orClean()
             else
                 true
             fi
-        } # | sed 's/^/   │ /'
-        [[ "${PIPESTATUS[0]}" == 0 ]] || FATAL_FAILURE_NO_RETURN "❌  Failed to setup Python virtual environment: Please check the output above."
+        }  || FATAL_FAILURE_NO_RETURN "❌  Failed to setup Python virtual environment: Please check the output above."
         echo "   └─ Done"
     }
     popd >/dev/null || true
@@ -492,6 +492,8 @@ function do_clearDestinationFile()
 
 function do_pyInstall_orClean()
 {
+    [[ "${do_setupPython3_Done:-}" == 'yes' ]] || do_setupPython3 ""
+
     local _PYAPP_RUN   ; _PYAPP_RUN="$(realpath -m "${1}")"
     local _PYAPP_ENV=''; [[ "$ENV_ROOT" == "_none_" ]] || _PYAPP_ENV="$(realpath -m "${ENV_ROOT%/}/.venv")"
     local _exe_name    ; _exe_name="$(basename "$_PYAPP_RUN" '.py')"
