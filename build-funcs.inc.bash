@@ -320,6 +320,11 @@ function setupBuildEnvironment()
         if [[ "$(type -t apps_doSetupBuildEnvironment)" == 'function' ]] ; then
             apps_doSetupBuildEnvironment                                  || FATAL_FAILURE_NO_RETURN "❌  Failed to setup build environment[apps_doSetupBuildEnvironment()]: Please check the output above."
         fi
+
+        if [[ "$*" != *"--no-precommit"* ]] ; then
+            apps_doSetupPrecommitEnvironment                                  || FATAL_FAILURE_NO_RETURN "❌  Failed to setup precommit environment[apps_doSetupPrecommitEnvironment()]: Please check the output above."
+        fi
+
         if [[ -f "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] ; then
             [[  -x "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] || FATAL_FAILURE_NO_RETURN "❌  Failed to smpetup build environment[${THIS_DIR%/}/tools/do-setup-build-environment.sh]: Not executable"
             "${THIS_DIR%/}/tools/do-setup-build-environment.sh"           || FATAL_FAILURE_NO_RETURN "❌  Failed to setup build environment[${THIS_DIR%/}/tools/do-setup-build-environment.sh]: Please check the output above."
@@ -698,6 +703,29 @@ function git_with_location_params_nice()
     [[ "${path}" == "." ]] || echo -n " -C $(quoteIfNeeded "${path}")"
 }
 
+
+if [[ "$(type -t apps_doSetupPrecommitEnvironment)" != 'function' ]] ; then
+
+    function apps_doSetupPrecommitEnvironment()
+    {
+        installPkgIfNeeded git
+        if ! git-lfs --version 2>/dev/null ; then
+            echo "⚡  git-lfs needs to be installed"
+            installPkgIfNeeded curl
+            curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh > /tmp/git-lfs-deb.sh
+            sudoIfNeeded chmod +x /tmp/git-lfs-deb.sh
+            sudoIfNeeded apt-get install -y git-lfs
+            git lfs >/dev/null 2>/dev/null || git lfs install
+        fi
+        installPkgIfNeeded pre-commit
+        installPkgIfNeeded nodejs
+        if cmp -s "${BUILD_FUNCS_DIR%/}/_hacks/^usr^lib^python3^dist-packages^nodeenv.py/old" /usr/lib/python3/dist-packages/nodeenv.py ; then
+
+            echo "⚠️  nodeenv.py is not patched, Overwriting (this is needed for nodeenv to work properly)"
+            sudoIfNeeded cp "${BUILD_FUNCS_DIR%/}/_hacks/^usr^lib^python3^dist-packages^nodeenv.py/new" /usr/lib/python3/dist-packages/nodeenv.py
+        fi
+    }
+fi
 if [[ "$(type -t main)" != 'function' ]] ; then
 
     function main()
