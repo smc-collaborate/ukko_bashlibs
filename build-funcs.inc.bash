@@ -174,8 +174,12 @@ function do_rosPackages()
 
         if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
             echo "   🔨  ROS2 package: $module_name - Cleaning build artifacts"
-            rm -rf build install log
-            find . -type d -name __pycache__ -print0 | xargs -0 rm -rf
+            {
+                echo "build"
+                echo "install"
+                echo "log"
+                echo "__pycache__"
+            }  | forceDelete "           "
             echo "Cleaned build, install, log & __pycache__ directories $* (${package_dir})"
         else
             echo "   🔨  Building ROS2 package: ${module_name} $* (in dir: ${package_dir})"
@@ -211,7 +215,7 @@ function do_protoGenerate_orClean()
             printable_dir="${fulldir#"${THIS_DIR%/}"/}"
             if [[ "${AM_CLEANING}" == 'yes' ]] && [[ -d "_generated" ]] ; then
                 echo "   Proto directory[$printable_dir] - Cleaning _generated directory"
-                rm -rf _generated #//-
+                echo '_generated' | forceDelete "           "
             fi
 
 
@@ -222,7 +226,7 @@ function do_protoGenerate_orClean()
                     echo "    • ${printable_dir%/}/$proto_file"
                     found_proto_file='yes'
                 done
-                rm -rf _tmp_generated
+                echo '_tmp_generated' | forceDelete "           "
                 mkdir -p _tmp_generated
                 if [[ "$(protoc --version)" == "libprotoc 3.12"*  ]] ; then
                     # Very old version of protobuf
@@ -250,15 +254,37 @@ function do_protoGenerate_orClean()
     return 0
 }
 
+
+function forceDelete()
+{
+    local result='0'
+    local prefix="${1:-}"
+    while IFS= read -r target; do
+        if [[ -e "$target" ]] ; then
+
+            rm -rf "$target" &>/dev/null || true
+            if [[ ! -e "$target" ]] ; then
+                echo "✓ Deleted $target "
+            elif [[ "$(id -u)" -ne 0 ]] && sudoIfNeeded rm -rf "$target" ; then
+                echo "✓ Deleted $target (with sudo)"
+            else
+                echo "✗ Failed to delete '$target'"
+                result=1
+            fi
+        fi
+    done
+    return $result
+}
+
 function pyApp_cleanIfNeeded()
 {
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         echo "   Cleaning python cache files" # from $(pwd)"
-
-        find . -name '*.pyc' -delete
-        find . -name '*.pyo' -delete
-        find . -name '*.pyd' -delete
-        find . -name '__pycache__' -exec rm -rf {} +
+        find . -name '.venv' | forceDelete "     "
+        find . -name '*.pyc' | forceDelete "     "
+        find . -name '*.pyo' | forceDelete "     "
+        find . -name '*.pyd' | forceDelete "     "
+        find . -name '__pycache__' | forceDelete "     "
     fi
 }
 
@@ -401,7 +427,7 @@ function do_setupPythonVenv_orClean()
                     FATAL_FAILURE_NO_RETURN "Failed to setup Python virtual environment: No requirements suitable file found"
                 fi
             fi
-            [[ -d .venv ]] && [[ ! -w .venv ]] && FATAL_FAILURE_NO_RETURN "The virtual environment '${ENV_ROOT%/}/.venv' is not writable.\nTry ${BOLD_BLUE_STDOUT:-}sudo ${THIS_EXE_FROM_ORIGINAL_PWD:-"$0"} --clean${NC_STDOUT:-} to remove it"
+            [[ -d .venv ]] && [[ ! -w .venv ]] && FATAL_FAILURE_NO_RETURN "The virtual environment '${ENV_ROOT%/}/.venv' is not writable.\nTry ${BOLD_BLUE_STDOUT:-}${THIS_EXE_FROM_ORIGINAL_PWD:-"$0"} --clean${NC_STDOUT:-}"
             python3 -m venv .venv
             if [[ -f ".venv/bin/activate" ]] ; then
                 # shellcheck disable=SC1091

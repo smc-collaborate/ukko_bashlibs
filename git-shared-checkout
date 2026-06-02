@@ -86,14 +86,14 @@ function main()
             do_with_check  rm -rf "$full_dir" && description="<ERASED>"
             description="<ERASED>"
         else
-            description="$(git -C "$full_dir" describe --always --dirty)" || description="<INVALID>"
+            description="$(git -C "$full_dir" describe --always --dirty 2>/dev/null)" || description="<INVALID_GIT>"
         fi
     fi
     echo "$full_dir"
     if [[ "$option_is_erase" == "yes" ]]; then
         echo -e "$repo_caption: ${BOLD_BLUE_STDERR:-}$description:${NC_STDERR:-} ℹ️  ERASED" >&2
         return 0
-    elif [[ "$description" == "<INVALID>" ]]; then
+    elif [[ "$description" == "<INVALID_GIT>" ]]; then
         echo -e "$repo_caption: ${BOLD_RED_STDERR:-}$description:${NC_STDERR:-} -- Clearing" >&2
         do_with_check rm -rf "$full_dir"
     fi
@@ -102,7 +102,7 @@ function main()
         mkdir -p "$full_dir"
         [[ -z "$branch" ]] && do_with_check git clone                      "$repo_path" "$full_dir"
         [[ -z "$branch" ]] || do_with_check git clone --branch "${branch}" "$repo_path" "$full_dir"
-        [[ -z "$commit_hash" ]] || do_with_check git -C "$full_dir" checkout "${commit_hash}"
+        [[ -z "$commit_hash" ]] || do_with_check git -C "$full_dir" checkout -q "${commit_hash}"
         if [[ -f "${full_dir%/}/.gitmodules" ]]; then
             do_with_check git -C "$full_dir" submodule update --init --recursive
         fi
@@ -123,7 +123,7 @@ function main()
     local suffix=''
     [[ "$description" == *'--dirty'* ]] && suffix="${BOLD_RED_STDERR}  ⚠️  There are local changes${NC_STDERR}"
     if [[ "$option_is_quiet" == "no" ]] || [[ -n "$suffix" ]]; then
-        echo -e "Using: ${BOLD_BLUE_STDERR}$repo_caption [$description]${NC_STDERR}$suffix" >&2
+        echo -e "Using: ${BOLD_BLUE_STDERR:-}$repo_caption [$description]${NC_STDERR:-}$suffix" >&2
         echo -e "       └── $full_dir" >&2
     fi
     exit 0

@@ -240,14 +240,18 @@ function do_remove_link()
 {
     local link="$1"
     local optional_unless_target="${2:-}"
+    local displayLink
+
+    displayLink="$(displayPath "$link")"
+    displayLink="${displayLink:-"$link"}"
     if [[ -L "$link" ]] ; then
         if [[ -n "${optional_unless_target}" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$optional_unless_target")" ]] ; then
-            echo "    • Link confirmed: $(displayPath "$link") -> $(displayPath "$optional_unless_target")"
+            echo "    • Link confirmed: $displayLink -> $(displayPath "$optional_unless_target")"
         else
-            doWithSuccessMsg "    • Unlinked existing: $(displayPath "$link")"  unlink "$link"  || return $?
+            doWithSuccessMsg "    • Unlinked existing: $displayLink"  unlink "$link"  || return $?
         fi
     elif [[ -e "$link" ]] ; then
-        doWithSuccessMsg "    • Removed existing file/directory: $(displayPath "$link")"  rm -rf "$link" || return $?
+        doWithSuccessMsg "    • Removed existing file/directory: $displayLink"  rm -rf "$link" || return $?
     fi
 }
 
