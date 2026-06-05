@@ -128,7 +128,7 @@ function markFail_expected()
 
 
     printTestFailed "Actual❌: ${actual##stdOut: }"
-    printTestFollowupLine "Expected: ${expected##      }"
+    printTestFollowupLine "Expected: $(displayPath "${expected##      }")"
 
     return 1
 }
@@ -612,7 +612,14 @@ function RunWithNoteFailure()
     "$@" && return 0
 
     didFail='yes'
-    return 1
+
+    if [[ "${TEST_SUPPORT_EXIT_ON_FAIL:-}" == "yes" ]] ; then
+        echo -e "Exiting due to ${BOLD_BLUE_STDOUT:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${NC_STDOUT:-}"
+        exit 1
+    else
+        echo -e "   Use: ${BOLD_BLUE_STDOUT:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${NC_STDOUT:-} to exit on first failure"
+        return 1
+    fi
 }
 
 
@@ -642,12 +649,12 @@ function doValidateAnnotatedFile()
     [[ -z "$raw_format" ]] && raw_format='raw'
 
     local fname_noext="${annotated_file%%.*}"
-    #                   +-------------------------+----------------------------+-----------------------------------+--------------------------------------------------------------------------------
-    #                   | Test Kind               | Input                ------| Expected Output                   | Command to Run
-    #                   +-------------------------+----------------------------+-----------------------------------+--------------------------------------------------------------------------------
-    RunWithNoteFailure   doTest_check_stdOut_file  "<${annotated_file}"          "<${fname_noext}.${raw_format}"     annotatedData export  -f bitstream
-    RunWithNoteFailure   doTest_check_stdOut_json  "<${annotated_file}"          "<${fname_noext}.summary.json"      annotatedData export  -f json:summary
-    RunWithNoteFailure   doTest_check_stdOut_file  "<${annotated_file}"          "<${fname_noext}.png"               annotatedData export  -f image
+    #                   +--------------------+----------------------------+-----------------------------------+--------------------------------------------------------------------------------
+    #                   | Test Kind          | Input                ------| Expected Output                   | Command to Run
+    #                   +--------------------+----------------------------+-----------------------------------+--------------------------------------------------------------------------------
+    RunWithNoteFailure   doTest_check_stdOut  "<${annotated_file}"          "<${fname_noext}.${raw_format}"     annotatedData export  -f bitstream
+    RunWithNoteFailure   doTest_check_stdOut  "<${annotated_file}"          "<${fname_noext}.summary.json"      annotatedData export  -f json:summary
+    RunWithNoteFailure   doTest_check_stdOut  "<${annotated_file}"          "<${fname_noext}.png"               annotatedData export  -f image
     return 0
 }
 

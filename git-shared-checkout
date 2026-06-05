@@ -121,7 +121,7 @@ function main()
     fi
 
     local suffix=''
-    [[ "$description" == *'--dirty'* ]] && suffix="${BOLD_RED_STDERR}  ⚠️  There are local changes${NC_STDERR}"
+    [[ "$description" == *'-dirty' ]] && suffix="${BOLD_RED_STDERR}  ⚠️  There are local changes${NC_STDERR}"
     if [[ "$option_is_quiet" == "no" ]] || [[ -n "$suffix" ]]; then
         echo -e "Using: ${BOLD_BLUE_STDERR:-}$repo_caption [$description]${NC_STDERR:-}$suffix" >&2
         echo -e "       └── $full_dir" >&2

@@ -11,15 +11,37 @@ function displayPath()
     local result
     local relpath
 
-    orig="$(realpath "${1}")"
+    local option="${2:-}"
+
+    local trailingFile=''
+
+    local pathToReview="$1"
+    if [[ "$option" == "--link-src" ]] ; then
+        local link_path="$1"
+        local dir="${link_path%/*}"
+        trailingFile="${link_path##*/}"
+
+        [[ -z "$dir" ]] && dir="$PWD"
+        pathToReview="$dir"
+    fi
+
+    orig="$(realpath "${pathToReview}")"
     relpath="$(realpath --relative-to="${ORIG_PWD%/}/" "${orig}")"
     result="${orig/#$HOME/\~}"
 
     [[ "${#result}" -gt  "${#relpath}" ]] && result="$relpath"
 
-    echo -n "$result"
-    #|Logging| echo -n "[displayPath $*][real=$orig][relpath=${ORIG_PWD}+$relpath]"
+    if [[ -z "$result" ]] ; then
+        echo -n "$orig"
+    elif [[ -z "$trailingFile" ]] ; then
+        echo -n "$result"
+    else
+        echo -n "${result%/}/$trailingFile"
+    fi
+
 }
+
+
 
 function relativeToOrigPwd()
 {
@@ -240,18 +262,15 @@ function do_remove_link()
 {
     local link="$1"
     local optional_unless_target="${2:-}"
-    local displayLink
 
-    displayLink="$(displayPath "$link")"
-    displayLink="${displayLink:-"$link"}"
     if [[ -L "$link" ]] ; then
         if [[ -n "${optional_unless_target}" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$optional_unless_target")" ]] ; then
-            echo "    • Link confirmed: $displayLink -> $(displayPath "$optional_unless_target")"
+            echo "    • Keeping link : $(displayPath "$link" --link-src) → $(displayPath "$optional_unless_target")"
         else
-            doWithSuccessMsg "    • Unlinked existing: $displayLink"  unlink "$link"  || return $?
+            doWithSuccessMsg "    • Unlinked existing: $(displayPath "$link" --link-src)"  unlink "$link"  || return $?
         fi
     elif [[ -e "$link" ]] ; then
-        doWithSuccessMsg "    • Removed existing file/directory: $displayLink"  rm -rf "$link" || return $?
+        doWithSuccessMsg "    • Removed existing file/directory: $(displayPath "$link" --link-src)"  rm -rf "$link" || return $?
     fi
 }
 
@@ -263,10 +282,12 @@ function do_ensure_link()
     if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
         do_remove_link "$link" || return $?
     elif [[ -L "$link" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$target")" ]] ; then
-        echo "    • Link confirmed: $link -> $(displayPath "$target")"
+        echo "    • Link confirmed: $(displayPath "$link" --link-src) → $(displayPath "$target")"
     else
         do_remove_link "$link" || return $?
-        doWithSuccessMsg "    • Created link: $link -> $(displayPath "$target")"  ln -s "$target" "$link" || return $?
+        target_parent="$(dirname "$target")"
+        [[ -d "$target_parent" ]] || doWithSuccessMsg "    • Created parent : $(displayPath "$target_parent")"  mkdir -p "$target_parent" || return $?
+        doWithSuccessMsg "    • Created link: $(displayPath "$link" --link-src) → $(displayPath "$target")"  ln -s "$target" "$link" || return $?
     fi
 
     return 0
@@ -288,7 +309,7 @@ function do_ensure_file_set()
     local src_attr ; src_attr=$(stat --printf="%a" "$src_fname")
     local dst_attr ; dst_attr=$(stat --printf="%a" "$dest_fname")
     if [[ "$src_attr" != "$dst_attr" ]] ; then
-        doWithSuccessMsg "    • Updated permissions for $(displayPath "$dest_fname") : $dst_attr -> $src_attr"  chmod "$src_attr" "$dest_fname" || return $?
+        doWithSuccessMsg "    • Updated permissions for $(displayPath "$dest_fname") : $dst_attr → $src_attr"  chmod "$src_attr" "$dest_fname" || return $?
         gave_success_msg='yes'
     fi
 

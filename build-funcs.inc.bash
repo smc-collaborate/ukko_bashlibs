@@ -395,10 +395,10 @@ function do_setupPythonVenv_orClean()
     [[ -n "${1:-}" ]] && ENV_ROOT="${1}"
     [[ -z "${ENV_ROOT:-}" ]] && ENV_ROOT="${THIS_DIR}"
 
-    [[ "${ENV_ROOT_SETUP_SKIP:-}" == "${ENV_ROOT}" ]] && echo "   Using Python .venv: $ENV_ROOT" && return 0
+    [[ "${ENV_ROOT_SETUP_SKIP:-}" == "${ENV_ROOT}" ]] && echo "   Using Python .venv: $(displayPath "${ENV_ROOT}")" && return 0
 
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
-        echo "   Clearing virtual environment in ${ENV_ROOT%/}/.venv" | sed "s|$HOME|~|g"
+        echo "   Clearing virtual environment in $(displayPath "${ENV_ROOT%/}/.venv")"
         rm -rf "${ENV_ROOT%/}/.venv" || true
         return 0
     fi
@@ -408,7 +408,7 @@ function do_setupPythonVenv_orClean()
         {
             python3_subver="$(python3 --version | sed 's|^Python 3\.||g' | sed 's|\..*$||g')"
 
-            echo "   Setting up virtual environment for Python 3.${python3_subver} in ${ENV_ROOT%/}/.venv" | sed "s|$HOME|~|g"
+            echo "   Setting up virtual environment for Python 3.${python3_subver} in $(displayPath "${ENV_ROOT%/}/.venv")"
             requirements_fname=''
             if [[ -f "requirements-python3.${python3_subver}.txt" ]] ; then
                 requirements_fname="requirements-python3.${python3_subver}.txt"
@@ -443,14 +443,12 @@ function do_setupPythonVenv_orClean()
             pip install -r "${requirements_fname}" | grep -v '^Requirement already satisfied:' | sed 's|^|   │ |'
             [[ "${PIPESTATUS[0]}" == 0 ]] || FATAL_FAILURE_NO_RETURN "❌  pip install failure: Please check the output above."
 
-            if [[ -d "/usr/share/fonts/truetype/dejavu" ]] ; then
+            font_target=".venv/lib/python3.${python3_subver}/site-packages/cv2/qt/fonts"
+            if [[ ! -d "/usr/share/fonts/truetype/dejavu" ]] && [[ -d "$font_target" ]] ; then
                 #
                 # Install fonts for QT apps - otherwise it complains about not finding them
                 #
-
-                mkdir -p ".venv/lib/python3.${python3_subver}/site-packages/cv2/qt"
-                unlink ".venv/lib/python3.${python3_subver}/site-packages/cv2/qt/fonts" 2>/dev/null || true
-                ln -s /usr/share/fonts/truetype/dejavu ".venv/lib/python3.${python3_subver}/site-packages/cv2/qt/fonts"
+                do_ensure_link "/usr/share/fonts/truetype/dejavu" "$font_target"
             else
                 true
             fi
@@ -458,6 +456,57 @@ function do_setupPythonVenv_orClean()
         echo "   └─ Done"
     }
     popd >/dev/null || true
+}
+
+function installLibIfNeeded()
+{
+    local git_url="$1"
+    local libname="${git_url##*/}"
+    libname="${libname%.git}"
+    local libname_ver="${libname^^}_VER"
+    local libname_ver_default="${libname_ver}_DEFAULT"
+
+    local dest_dir_parent
+
+    if [[ -d "${THIS_DIR%/}/libs" ]] ; then
+        dest_dir_parent="${THIS_DIR%/}/libs"
+    else
+        dest_dir_parent="${THIS_DIR%/}"
+    fi
+    local dest_dir="${dest_dir_parent%/}/${libname}"
+    ###############
+    #
+    # Version ?
+    #
+    local lib_ver="${!libname_ver:-}"
+    local lib_ver_reason=""
+    if [[ -n "$lib_ver" ]] ; then
+        lib_ver_reason="Set with \$${libname_ver}"
+    else
+        lib_ver="${!libname_ver_default:-}"
+        if [[ -n "$lib_ver" ]] ; then
+            lib_ver_reason="Set with \$${libname_ver_default}"
+        else
+            lib_ver_reason="⚠️  No version specified - \$${libname_ver} not set)"
+        fi
+    fi
+    echo -e "   Linking ${BOLD_BLUE_STDOUT:-}$(displayPath "$dest_dir_parent")/${libname}${NC_STDOUT:-} → Shared ${BOLD_BLUE_STDOUT:-}${git_url} ${lib_ver}${NC_STDOUT:-} ($lib_ver_reason)"
+
+    if [[ "${lib_ver}" = "#"* ]] ; then
+        do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" --hash="${lib_ver#\#}"
+    else
+        do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" "$lib_ver"
+    fi
+
+    local description
+    if ! description="$(git -C "$dest_dir" describe --always --dirty)" ; then
+        echo "   ❌ Invalid git repository at $(displayPath "$dest_dir") for ${git_url}"
+        return 1
+
+    fi
+
+    [[ "$description" == *-dirty ]] && description="${description} ⚠️  With uncommited changes"
+    echo "    • GitHash: ${description}"
 }
 
 function installPkgIfNeeded()
@@ -537,7 +586,14 @@ function do_clearDestinationFile()
 }
 
 
-
+function get_install_dir()
+{
+    if [[ "$EUID" -eq 0 ]] ; then
+        echo "/usr/local/bin"
+    else
+        echo "${HOME%/}/.local/bin"
+    fi
+}
 function do_pyInstall_orClean()
 {
     [[ "${do_setupPython3_Done:-}" == 'yes' ]] || do_setupPython3 ""
@@ -567,7 +623,7 @@ function do_pyInstall_orClean()
         echo "⚡  If $_exe_name is made executable with '#!/bin/python3' at the top it could be created as a direct link"
     fi
 
-    local INSTALL_DIR="${HOME%/}/.local/bin" ; [[ "$EUID" -eq 0 ]] && INSTALL_DIR="/usr/local/bin"
+    local INSTALL_DIR ; INSTALL_DIR="$(get_install_dir)"
     local _PYAPP_INSTALL_SOURCE ; _PYAPP_INSTALL_SOURCE="${INSTALL_DIR}/${_exe_name}"
 
 
@@ -617,10 +673,9 @@ function do_pyInstall_orClean()
     } > "$_PYAPP_INSTALL_SOURCE"
     chmod +x "$_PYAPP_INSTALL_SOURCE"
 
-    echo "    • Created: $(displayPath "$_PYAPP_INSTALL_SOURCE") -> $(displayPath "$_PYAPP_RUN")"
+    echo "    • Created: $(displayPath "$_PYAPP_INSTALL_SOURCE") → $(displayPath "$_PYAPP_RUN")"
     do_dumpInstalledExe "$_exe_name"
 }
-
 
 
 function do_exeInstall_orClean()
@@ -628,9 +683,9 @@ function do_exeInstall_orClean()
     local script="$1"
     shift 1 || true
 
-    local INSTALL_DIR="${HOME%/}/.local/bin" ; [[ "$EUID" -eq 0 ]] && INSTALL_DIR="/usr/local/bin"
-    local _EXE_RUN ; _EXE_RUN="$(realpath -m "${script}")"
-    local _exe_name  ; _exe_name="$(basename "$_EXE_RUN")"
+    local INSTALL_DIR ; INSTALL_DIR="$(get_install_dir)"
+    local _EXE_RUN    ; _EXE_RUN="$(realpath -m "${script}")"
+    local _exe_name   ; _exe_name="$(basename "$_EXE_RUN")"
 
     _exe_name="${_exe_name%.*}" # Remove extension for the installed executable name
 
@@ -644,25 +699,7 @@ function do_exeInstall_orClean()
     fi
 }
 
-function do_ensure_link()
-{
-    local link="$1"
-    local target="$2"
-    if [[ "${AM_CLEANING}" == 'yes' ]] ; then
-        do_remove_link "$link"
-        return $?
-    fi
 
-    if [[ -L "$link" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$target")" ]] ; then
-            echo "    • Link confirmed: $link -> $(displayPath "$target")"
-            return 0
-        fi
-
-    do_remove_link "$link"
-    mkdir -p "$(dirname "$link")"
-    ln -s "$target" "$link"
-    echo "    • Created link: $link -> $(displayPath "$target")"
-}
 function do_ensure_linked_git_checkout()
 {
     local local_repo_link="$1"
@@ -842,5 +879,7 @@ if [[ "${1:-}" == '--clean' ]] || [[ "${1:-}" == '--fresh' ]] || [[ "${1:-}" == 
 fi
 export clean_param="" #<Deprecated : Use $AM_CLEANING instead
 export AM_CLEANING='no'
+
+export GIT_SHARED_CHECKOUT_QUIET='yes'
 
 main "$@"
