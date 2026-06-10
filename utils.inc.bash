@@ -78,6 +78,11 @@ function _quoteIfNeeded()
         [[ "$value" == *'}'* ]] && issues+='[closeBraces]'
         [[ "$value" == *'['* ]] && issues+='[openBrackets]'
         [[ "$value" == *']'* ]] && issues+='[closeBrackets]'
+        [[ "$value" == *'<'* ]] && issues+='[lessThan]'
+        [[ "$value" == *'>'* ]] && issues+='[greaterThan]'
+        [[ "$value" == *';'* ]] && issues+='[semicolons]'
+        # shellcheck disable=SC1003
+        [[ "$value" == *'\'* ]] && issues+='[backslashes]'
 
 
         if [[ -n "$issues" ]] ; then
