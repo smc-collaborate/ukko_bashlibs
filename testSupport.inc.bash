@@ -17,6 +17,7 @@ if [[ -t 1 ]] ; then
     YELLOW='\033[1;33m'
     BLUE='\033[0;34m'
     BOLD_BLUE="\033[1;34m"
+    BOLD_RED="\033[1;31m"
     NC='\033[0m' # No Color
 else
     # Disable colors if output is not a terminal (e.g., when redirected to a file)
@@ -25,6 +26,7 @@ else
     YELLOW=''
     BLUE=''
     BOLD_BLUE=''
+    BOLD_RED=''
     NC=''
 fi
 

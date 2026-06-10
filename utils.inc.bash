@@ -125,6 +125,7 @@ export GREEN='\033[0;32m'
 export YELLOW='\033[1;33m'
 export BLUE='\033[0;34m'
 export BOLD_BLUE="\033[1;34m"
+export BOLD_RED="\033[1;31m"
 export NC='\033[0m' # No Color
 
 if [[ -t 1 ]] ; then
@@ -134,6 +135,7 @@ if [[ -t 1 ]] ; then
     export YELLOW_STDOUT="$YELLOW"
     export BLUE_STDOUT="$BLUE"
     export BOLD_BLUE_STDOUT="$BOLD_BLUE"
+    export BOLD_RED_STDOUT="$BOLD_RED"
     export NC_STDOUT="$NC"
     extraVerboseLogging "Colors enabled for output [stdout]"
 fi
@@ -145,6 +147,7 @@ if [[ -t 2 ]] ; then
     export YELLOW_STDERR="$YELLOW"
     export BLUE_STDERR="$BLUE"
     export BOLD_BLUE_STDERR="$BOLD_BLUE"
+    export BOLD_RED_STDERR="$BOLD_RED"
     export NC_STDERR="$NC"
     extraVerboseLogging "Colors enabled for output [stderr]"
 fi
@@ -211,6 +214,11 @@ function doRun()
         silent_if_ok=yes
         shift 1 || true
     fi
+    local expected_result=0
+    if [[ "${1:-}" == "--expect-exit-code="* ]] ; then
+        expected_result="${1#--expect-exit-code=}"
+        shift 1 || true
+    fi
 
     local result=0
 
@@ -219,12 +227,16 @@ function doRun()
 
     "$@" &> "$tmpfile" || result=$?
 
-    if [[ "$result" == 0 ]]; then
+    local exitCodeNote=''
+
+    [[ "$result" -ne 0 ]] && exitCodeNote="[Exit code: $result]"
+
+    if [[ "$result" == "$expected_result" ]]; then
         [[ "$silent_if_ok" == "yes" ]] && return 0
-        echo "      ✓ Ran: $*"
+        echo "      ✓ Ran${exitCodeNote}: $*"
     else
-        echo "      ✗ Ran: $*"
-        echo "        ❌ Responded with Failure: $result"
+        echo "      ✗ Ran${exitCodeNote}: $*"
+        echo "        ❌ Responded with: $result"
         # shellcheck disable=SC2034
         overallBashResult="$result"
     fi
