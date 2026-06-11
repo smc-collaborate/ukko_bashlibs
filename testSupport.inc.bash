@@ -204,7 +204,7 @@ function verifyFile_matches() {
         # |Logging|     cat "$gen__fname_old"
         # |Logging|     echo "<<< $gen__fname_old"
         # |Logging|     echo "----^"
-        # |Logging| } | sed 's/^/❓  /' >&2
+        # |Logging| } | withPrefix "❓  " >&2
 
         jq_normaliseWithChecks "Generated output" < "$gen__fname_old" > "$gen__fname"
         gen__prefix+=".json"
@@ -249,7 +249,7 @@ function verifyFile_matches() {
             echo "---- Actual → Expected (Gold standard)     -----"
             diff -u "$gen__fname" "$gold_fname" | tail -n +3 || true
             echo "--------------"
-        } | sed -e "s/^/${PRINT_LEFT_PREFIX} │ /"
+        } | withPrefix "${PRINT_LEFT_PREFIX} │ "
         elif [[ "$filter" == "annotatedData" ]] ; then
         {
             echo "---- Actual → Expected (Gold standard)     -----"
@@ -263,7 +263,7 @@ function verifyFile_matches() {
 
             diff  "$summary_fname_gen_" "$summary_fname_gold" || true
             echo "--------------"
-        } | sed -e "s/^/${PRINT_LEFT_PREFIX} │ /"
+        } | withPrefix "${PRINT_LEFT_PREFIX} │ "
         fi
         return 0
     fi
@@ -577,8 +577,8 @@ function commandComplete_dumpCmdInfo()
     local pre_gap
     # |Logging| echo "!!!!!!!!!!!(5) [$libSupport_testCmd]:libSupport_testVerificationResult=$libSupport_testVerificationResult"
     echo -e "${PRINT_LEFT_PREFIX} │ Command: ${BOLD_BLUE_STDOUT:-}${libSupport_testCmd% | cat}${NC_STDOUT:-}"
-    sed -e 's/\r.*\r//' -e "s|^⚠️|⚠ |g"  -e "s|^❌|✗ |g" -e "s|^ℹ️ |🛈 |g"  -e "s/^/${PRINT_LEFT_PREFIX} │  /" < "$stderr_file"
-    sed -e 's/\r.*\r//' -e "s/^/${PRINT_LEFT_PREFIX} │ ❓  /" < "$failure_notes_file"
+    sed --unbuffered -e 's/\r.*\r//' -e "s|^⚠️|⚠ |g"  -e "s|^❌|✗ |g" -e "s|^ℹ️ |🛈 |g"  -e "s/^/${PRINT_LEFT_PREFIX} │  /" < "$stderr_file"
+    sed --unbuffered -e 's/\r.*\r//' -e "s/^/${PRINT_LEFT_PREFIX} │ ❓  /" < "$failure_notes_file"
 
 
     [[ -z "$expected_return_code" ]] && expected_return_code="${EXPECTED_CMD_RETURN_CODE:-0}"

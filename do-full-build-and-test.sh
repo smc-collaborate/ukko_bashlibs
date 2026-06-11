@@ -90,7 +90,7 @@ function dumpVersions()
         else
             echo "protoc : Not found"
         fi
-    } | sed 's/^/|  - /'
+    } | withPrefix "|  - "
     echo "--------------------"
 }
 

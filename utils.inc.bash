@@ -5,6 +5,8 @@
 # IMPORT THIS AS A 'source' script
 #   source tools/utils.inc.bash
 #
+
+
 function displayPath()
 {
     local orig
@@ -123,6 +125,10 @@ function extraVerboseLogging()
     true # echo "🛈  $*" >&2
 }
 
+function print_verbose()
+{
+    echo -e "ℹ️  $*" >&2
+}
 
 # Colors for output
 export RED='\033[0;31m'
@@ -200,7 +206,7 @@ function FATAL_FAILURE_NO_RETURN()
     exit 1
 }
 if [[ -z "${THIS_EXE:-}" ]] ; then
-    THIS_EXE="${THIS_EXE_FROM_ORIGINAL_PWD}"
+    THIS_EXE="${BASH_SOURCE[-1]}"
     if [[ "${THIS_EXE}" == '../' ]] || [[ "${THIS_EXE}" == './' ]] ; then
         THIS_EXE="${ORIG_PWD%/}/${THIS_EXE}"
     fi
@@ -208,6 +214,18 @@ if [[ -z "${THIS_EXE:-}" ]] ; then
     THIS_EXE="$(realpath -m "${THIS_EXE}")"
 fi
 [[ -n "${THIS_DIR:-}" ]] || THIS_DIR="$(realpath -m "$(dirname "${THIS_EXE}")")"
+# shellcheck disable=SC2034
+UKKO_BASHLIBS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
+
+# shellcheck disable=SC2034
+THIS_EXE_AS_DISPLAY="$(displayPath "$THIS_EXE")"
+# shellcheck disable=SC2034
+THIS_DIR_AS_DISPLAY="$(displayPath "$THIS_DIR")"
+
+[[ -z "${ORIG_EXE_RUN:-}" ]] && export ORIG_EXE_RUN="${THIS_EXE}"
+[[ -z "${ORIG_EXE_DIR:-}" ]] && export ORIG_EXE_DIR="${THIS_DIR}"
+[[ -z "${ORIG_EXE_RUN_AS_DISPLAY:-}" ]] && export ORIG_EXE_RUN_AS_DISPLAY="${THIS_EXE_AS_DISPLAY}"
+[[ -z "${ORIG_EXE_DIR_AS_DISPLAY:-}" ]] && export ORIG_EXE_DIR_AS_DISPLAY="${THIS_DIR_AS_DISPLAY}"
 
 
 overallBashResult=0
@@ -245,14 +263,36 @@ function doRun()
         # shellcheck disable=SC2034
         overallBashResult="$result"
     fi
-    if [[ -s "$tmpfile" ]] ; then
-           echo "             ┌───────────────────────────────────────────────────────────────────────"
-        sed "s/^/             │ /" < "$tmpfile"
-           echo "             └───────────────────────────────────────────────────────────────────────"
-    fi
+    [[ -s "$tmpfile" ]] && withLeftBox "             " < "$tmpfile"
+
     rm -f "$tmpfile"
     return $result
 }
+
+function withPrefix()
+{
+    local prefix="$1"
+    sed --unbuffered "s/^/${prefix}/" || return 0
+}
+
+function withLeftBox()
+{
+    local prefix="${1:-}"
+    echo       "${prefix}╭───────────────────────────────────────────────────────────────────────"
+    withPrefix "${prefix}│ "
+    echo       "${prefix}╰───────────────────────────────────────────────────────────────────────"
+}
+
+function doRun-groupedOutput()
+{
+    local result
+    echo                   "╭───────────────────────────────────────────────────────────────────────"
+    "$@" 2>&1 | withPrefix "│ "
+    result="${PIPESTATUS[0]}"
+    echo                   "╰───────────────────────────────────────────────────────────────────────"
+    return "$result"
+}
+
 
 function doWithSuccessMsg()
 {
@@ -299,7 +339,7 @@ function do_ensure_link()
     if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
         do_remove_link "$link" || return $?
     elif [[ -L "$link" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$target")" ]] ; then
-        echo "    • Link confirmed: $(displayPath "$link" --link-src) → $(displayPath "$target")"
+        printf "    • Link confirmed: %-24s → %s\n" "$(displayPath "$link" --link-src)" "$(displayPath "$target")"
     else
         do_remove_link "$link" || return $?
         target_parent="$(dirname "$target")"

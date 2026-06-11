@@ -43,8 +43,19 @@
 BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 source "${BUILD_FUNCS_DIR%/}/utils.inc.bash"
 
+TEST_SCRIPT_NAME="$(basename "${THIS_EXE}" ".sh")"
+
+if [[ -z "${BASE_TEST_SCRIPT:-}" ]] ; then
+    export BASE_TEST_SCRIPT="$THIS_EXE"
+fi
+if [[ "${BASE_TEST_SCRIPT:-}" == "$THIS_EXE" ]] ; then
+    # shellcheck disable=SC2034
+    IS_BASE_TEST_SCRIPT='yes'
+fi
+
 failFound='no'
 testName='<NONE>'
+# shellcheck disable=SC2317
 function testStart()
 {
     testName="${1:-Test}"
@@ -52,6 +63,7 @@ function testStart()
     echo "🔍  Starting test: $testName"
 }
 
+# shellcheck disable=SC2317
 function testEnd()
 {
     if [[ "$failFound" == 'yes' ]] ; then
@@ -64,24 +76,31 @@ function testEnd()
         return 0
     fi
 }
+
+# shellcheck disable=SC2317
 function doFail()
 {
     failFound='yes'
     local msg="$*"
     msg="${msg:-"Test Failed"}"
     echo "❌  $msg"
+
+    return 1
 }
 
+# shellcheck disable=SC2317
 function progressCheck_hasFailed()
 {
     [[ "$failFound" == 'yes' ]]
 }
 
+# shellcheck disable=SC2317
 function progressCheck_hasNotFailedYet()
 {
     [[ "$failFound" != 'yes' ]]
 }
 
+# shellcheck disable=SC2317
 function _getRunningPids()
 {
     local exeName="$1"
@@ -89,6 +108,7 @@ function _getRunningPids()
     pgrep -f "${exeName}" || true
 }
 
+# shellcheck disable=SC2317
 function runningChecks_failIfNotRunning()
 {
     local exeName="$1"
@@ -101,6 +121,7 @@ function runningChecks_failIfNotRunning()
     fi
 }
 
+# shellcheck disable=SC2317
 function runningChecks_failIfRunning()
 {
     local exeName="$1"
@@ -128,6 +149,7 @@ function runningChecks_failIfRunning()
     fi
 }
 
+# shellcheck disable=SC2317
 function runningChecks_haltIfRunning()
 {
     local exeName="$1"
@@ -156,6 +178,7 @@ function runningChecks_haltIfRunning()
     echo "ℹ️  Halted ${exeName} (PIDs: [$devices_running])"
 }
 
+# shellcheck disable=SC2317
 function doMatch_direct()
 {
     local value1="$1"
@@ -169,16 +192,116 @@ function doMatch_direct()
     fi
 }
 
-function main()
+if [[ "$(type -t main)" != 'function' ]] ; then
+    function main()
+    {
+        testSetup
+        if progressCheck_hasNotFailedYet; then
+            testRun
+        else
+            echo "Unable to start test - Setup failed"
+        fi
+        testCleanup
+        testEnd
+    }
+fi
+
+# shellcheck disable=SC2317
+function get_GOLD_REF_DIR()
 {
-    testSetup
-    if progressCheck_hasNotFailedYet; then
-        testRun
-    else
-        echo "Unable to start test - Setup failed"
-    fi
-    testCleanup
-    testEnd
+    export PARENT_DIR ; PARENT_DIR="$(dirname "${THIS_DIR}")"
+    export GRANDPARENT_DIR ; GRANDPARENT_DIR=$(dirname "${PARENT_DIR}")
+    #export SAMPLES_DIR="${PARENT_DIR}/samples"
+
+    msgs=()
+    msgs+=("⚠️  - THIS_DIR        =$THIS_DIR")
+    msgs+=("⚠️  - PARENT_DIR      =$PARENT_DIR")
+    msgs+=("⚠️  - GRANDPARENT_DIR =$GRANDPARENT_DIR")
+    #msgs+=("⚠️    - SAMPLES_DIR    =$SAMPLES_DIR")
+
+    for dir in "${GRANDPARENT_DIR}" "${PARENT_DIR}" "${THIS_DIR}" "-end-"; do
+        if [[ "${dir}" == "-end-" ]] ; then
+            echo "⚠️  \$GOLD_REF_DIR : Not found - defaulting to missing: ${GOLD_REF_DIR}"
+            for msg in "${msgs[@]}" ; do
+                echo "$msg"
+            done
+            FATAL_FAILURE_NO_RETURN "Unable to find 'testing/gold_refs' directory"
+        fi
+
+
+        export GOLD_REF_DIR="${dir%/}/testing/gold_refs"
+        msgs+=("⚠️  -  Reviewed        ${GOLD_REF_DIR}")
+
+        if [[ -d "$GOLD_REF_DIR" ]] ; then
+            print_verbose "\$GOLD_REF_DIR = ${GOLD_REF_DIR}"
+            break
+        fi
+    done
+
 }
 
-main "$@"
+# shellcheck disable=SC2317
+function find_and_run_tests()
+{
+    tests=()
+    for file in "${THIS_DIR%/}"/test_*.sh; do
+        [[ -f "$file" ]] && tests+=("$file")
+    done
+    for file in "${THIS_DIR%/}"/testing/test_*.sh; do
+        [[ -f "$file" ]] && tests+=("$file")
+    done
+    for file in "${THIS_DIR%/}"/tests/test_*.sh; do
+        [[ -f "$file" ]] && tests+=("$file")
+    done
+    if [[ "${#tests[@]}" -eq 0 ]] ; then
+        doFail "No test scripts found in: ${THIS_DIR_AS_DISPLAY%/}: [test_*.sh, testing/test_*.sh, tests/test_*.sh]"
+    # |x|else
+    # |x|    for line in "${tests[@]}"; do
+    # |x|        rel="$(displayPath "${line}")"
+    # |x|        echo " Will run: $rel"
+    # |x|    done
+    fi
+
+
+    for line in "${tests[@]}"; do
+        rel="$(displayPath "${line}")"
+        "${line}" || doFail "Failed ${rel}"
+    done
+}
+
+
+if [[ "${BASE_TEST_SCRIPT:-}" == "$THIS_EXE" ]] ; then
+    echo "Full Test Process Started"
+    echo_prefix_mid=""
+    echo_prefix_end=""
+else
+    echo         -n "├── "
+    echo_prefix_mid="│   │  "
+    echo_prefix_end="│   "
+fi
+
+echo -e "Running ${YELLOW_STDOUT:-}${THIS_EXE_AS_DISPLAY}${NC_STDOUT:-}"
+
+main_result_code=0
+
+{
+    set -e
+    main "$@" || return 1
+    [[ "${didFail:-}" != 'yes' ]] || return 1
+    return 0
+} 2>&1 | withPrefix "${echo_prefix_mid}"
+main_result_code=${PIPESTATUS[0]}
+if [[ "$main_result_code" -ne 0 ]] ; then
+    echo "${echo_prefix_end}└─ ❌  $TEST_SCRIPT_NAME: Failed with error code $main_result_code"
+else
+    echo "${echo_prefix_end}└─ ✅  $TEST_SCRIPT_NAME: Completed successfully"
+fi
+
+#|if [[ "${BASE_TEST_SCRIPT:-}" == "$THIS_EXE" ]] ; then
+#|    if [[ "$main_result_code" -ne 0 ]] ; then
+#|        echo "❌  Full Test Process failed"
+#|    else
+#|        echo "✅  Full Test Process completed successfully"
+#|    fi
+#|fi
+exit "$main_result_code"

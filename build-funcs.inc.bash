@@ -355,7 +355,7 @@ function setupBuildEnvironment()
             [[  -x "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] || FATAL_FAILURE_NO_RETURN "❌  Failed to smpetup build environment[${THIS_DIR%/}/tools/do-setup-build-environment.sh]: Not executable"
             "${THIS_DIR%/}/tools/do-setup-build-environment.sh"           || FATAL_FAILURE_NO_RETURN "❌  Failed to setup build environment[${THIS_DIR%/}/tools/do-setup-build-environment.sh]: Please check the output above."
         fi
-    } | sed 's/^/   │ /'
+    } | withPrefix "   │ "
     [[ "${PIPESTATUS[0]}" == 0 ]] || exit 1
     echo "   └─ Done"
 }
@@ -440,7 +440,7 @@ function do_setupPythonVenv_orClean()
             fi
 
             echo "   │  Installing requirements from ${requirements_fname}"
-            pip install -r "${requirements_fname}" | grep -v '^Requirement already satisfied:' | sed 's|^|   │ |'
+            pip install -r "${requirements_fname}" | grep -v '^Requirement already satisfied:' | withPrefix "   │ "
             [[ "${PIPESTATUS[0]}" == 0 ]] || FATAL_FAILURE_NO_RETURN "❌  pip install failure: Please check the output above."
 
             font_target=".venv/lib/python3.${python3_subver}/site-packages/cv2/qt/fonts"
@@ -555,7 +555,7 @@ function do_dumpInstalledExe()
         echo -e "   ❌ FAILED TO INSTALL: ${__exe_name}   Confirm installation issues with ${BOLD_BLUE_STDOUT:-}${__exe_name} --version${NC_STDOUT:-}"
         return 1
     fi
-    echo -e "    • Installed: ${BOLD_BLUE_STDOUT:-}${_version}${NC_STDOUT:-}" | sed '1!s/^/                 /'
+    echo -e "    • Installed: ${BOLD_BLUE_STDOUT:-}${_version}${NC_STDOUT:-}" | sed --unbuffered '1!s/^/                 /'
 
     if [[ "${SUGGEST_HOW_TO_INSTALL_TO_ROOT:-}" == 'yes' ]] ; then
         if [[ "$_run_from_here" == "${HOME%/}/.local/bin/${__exe_name}" ]] ; then
@@ -863,12 +863,33 @@ if [[ "$(type -t main)" != 'function' ]] ; then
     }
 
 fi
+if [[ "${1:-}" == '--help' ]] || [[ "${1:-}" == '-h' ]] ; then
+    echo "Usage: ${THIS_EXE_AS_DISPLAY} [--clean | --fresh] [--with-tests] [other params for build functions ...]"
+    echo ""
+    echo "   --clean      : Clean all outputs (build artifacts, generated sources, installed applications, etc)"
+    echo "   --fresh      : Clean all outputs and then build (same as --clean followed by normal execution)"
+    echo "   --with-tests : Run tests after building"
+    echo "   --remove     : Alias of --clean"
+    echo "   --uninstall  : Alias of --clean"
+    echo ""
+    echo "Other parameters are passed to the build functions (e.g., apps_doBuildOrClean) and can be used to customize the build process.  For example, you could use '--only=source_generate' to only generate sources without building applications or setting up virtual environments."
+    exit 0
+fi
 
-if [[ "${1:-}" == '--clean' ]] || [[ "${1:-}" == '--fresh' ]] || [[ "${1:-}" == '--remove' ]] ; then
+if [[ "${1:-}" == '--clean' ]] || [[ "${1:-}" == '--fresh' ]] || [[ "${1:-}" == '--remove' ]] || [[ "${1:-}" == '--uninstall' ]] ; then
     orig_pram="${1:-}"
     shift || true # Remove the first argument if it is --clean or --fresh
-    export clean_param="--clean" #<Deprecated : Use $AM_CLEANING instead
     export AM_CLEANING='yes'
+fi
+
+if [[ "${1:-}" == '--with-tests' ]]  ; then
+    shift || true
+    export RUN_TESTS='yes'    # Export means that this is recursive - any install script called from here will also do tests
+# |SeeNote| else
+# |SeeNote|     export RUN_TESTS='no'     # Uncomment to make this non-recursive - otherwise any install script called from here will also do tests
+fi
+
+if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
     main "$@"
     if [[ "${orig_pram:-}" == '--fresh' ]] ; then
         echo "   Fresh clean done - now building ..."
@@ -877,9 +898,23 @@ if [[ "${1:-}" == '--clean' ]] || [[ "${1:-}" == '--fresh' ]] || [[ "${1:-}" == 
         exit 0
     fi
 fi
-export clean_param="" #<Deprecated : Use $AM_CLEANING instead
+
 export AM_CLEANING='no'
 
 export GIT_SHARED_CHECKOUT_QUIET='yes'
 
-main "$@"
+function runTestsIfNeeded()
+{
+    if [[ "${RUN_TESTS:-}" == 'yes' ]] ; then
+        if [[ "$(type -t apps_runTests)" == 'function' ]] ; then
+            echo "   Running tests ...  (apps_runTests)"
+            apps_runTests || FATAL_FAILURE_NO_RETURN "❌  Tests failed: Please check the output above."
+        elif [[ -x "${THIS_DIR%/}/do-all-tests.sh" ]] ; then
+            echo "   Running tests ...  (${THIS_DIR_AS_DISPLAY%/}/do-all-tests.sh)"
+            "${THIS_DIR%/}/do-all-tests.sh" || FATAL_FAILURE_NO_RETURN "❌  Tests failed: Please check the output above."
+        else
+            FATAL_FAILURE_NO_RETURN "❌  Tests failed: Neither 'apps_runTests()' nor '${THIS_DIR_AS_DISPLAY%/}/do-all-tests.sh' found to run tests."
+        fi
+    fi
+}
+main "$@" && runTestsIfNeeded
