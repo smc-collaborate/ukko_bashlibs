@@ -216,10 +216,7 @@ fi
 [[ -n "${THIS_DIR:-}" ]] || THIS_DIR="$(realpath -m "$(dirname "${THIS_EXE}")")"
 # shellcheck disable=SC2034
 UKKO_BASHLIBS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
-
-# shellcheck disable=SC2034
 THIS_EXE_AS_DISPLAY="$(displayPath "$THIS_EXE")"
-# shellcheck disable=SC2034
 THIS_DIR_AS_DISPLAY="$(displayPath "$THIS_DIR")"
 
 [[ -z "${ORIG_EXE_RUN:-}" ]] && export ORIG_EXE_RUN="${THIS_EXE}"

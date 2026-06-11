@@ -4,19 +4,25 @@
 # This is a utility to checkout git repositories in a shared location (e.g. under $HOME/gits-shared) and return the path to the checkout.
 # It is designed to be used in other scripts to share git checkouts across different scripts and avoid multiple checkouts of the same repository.
 # It also supports refreshing the checkout and clearing it if it is invalid.
-# Usage: git-shared-checkout [--refresh|--clear|--quiet] <repo_path> [branch]   | --version
+# Usage: git-shared-checkout [--refresh|--clear] [--quiet] <repo_path> [--ref=<ref>]   | --version
 #    eg: cat "$(git-shared-checkout https://github.com/Mac-H/ukko_gists)/readme.md"
 #
 # It needs to be possible to run without any other libraries (e.g. in a fresh docker image) and it should not produce any output on stdout except the path to the checkout (and error messages on stderr if needed).
 #
-GIT_SHARED_CHECKOUT_VERSION="0.0.4"
+GIT_SHARED_CHECKOUT_VERSION="0.0.5"
 [[ -z "${HOME:-}" ]] && SHARED_GIT_DIR="/usr/share/gits-shared"
 [[ -n "${HOME:-}" ]] && SHARED_GIT_DIR="${HOME}/gits-shared"
 
 function help()
 {
-    echo -e "Usage: $(basename "$THIS_EXE") [--refresh|--clear|--quiet] <repo_path> [branch] [--hash=<commit_hash>]  | --version" >&2
-    echo -e "   eg: ${BOLD_BLUE_STDERR:-}cat \"\$($(basename "$THIS_EXE") https://github.com/Mac-H/ukko_gists)/readme.md\"${NC_STDERR:-}" >&2
+    {
+        echo -e "Usage: $(basename "$THIS_EXE") [--refresh|--clear] [--quiet] <repo_path> [--ref=<ref>] | --version"
+        echo -e "       <ref> = hash:###      -or-"
+        echo -e "               branch:###    -or-"
+        echo -e "               tag:###       -or-"
+        echo -e "               hash-only:###  (No git history - only download the files)"
+        echo -e "   eg: ${BOLD_BLUE_STDERR:-}cat \"\$($(basename "$THIS_EXE") https://github.com/Mac-H/ukko_gists)/readme.md\"${NC_STDERR:-}" >&2
+    } >&2
 }
 function main()
 {
@@ -42,7 +48,9 @@ function main()
     elif [[ "${1:-}" == '--clear' ]]; then
         option_is_erase='yes'
         shift
-    elif [[ "${1:-}" == '--quiet' ]] || [[ "${1:-}" == '--quiet=yes' ]] ; then
+    fi
+
+    if [[ "${1:-}" == '--quiet' ]] || [[ "${1:-}" == '--quiet=yes' ]] ; then
         option_is_quiet='yes'
         shift
     elif [[ "${1:-}" == '--quiet=no' ]] ; then
@@ -51,13 +59,35 @@ function main()
     fi
 
     local repo_path="${1:-}"
-    local branch="${2:-}"
-    local commit_hash=''
+    local ref="${2:-}"
 
-    if [[ "$branch" == --hash=* ]]; then
-        commit_hash="${branch#--hash=}"
-        branch=''
+    local ref_type=''
+    local ref_value=''
+    if [[ "$ref" == --hash=* ]]; then
+        ref_type='hash'
+        ref_value="${ref#--hash=}"
+    elif [[ "$ref" == --hash=* ]]; then
+        ref_type='hash-only'
+        ref_value="${ref#--hash=}"
+    elif [[ "$ref" == '--ref=#'* ]]; then
+        ref_type='hash'
+        ref_value="${ref#--ref=#}"
+        echo "⚠️  Deprecated used of --ref=#${ref_value} :  Use --ref=hash:${ref_value} instead" >&2
+    elif [[ "$ref" == '--ref=branch:'* ]]; then
+        ref_type='branch'
+        ref_value="${ref#--ref=branch:}"
+    elif [[ "$ref" == '--ref=tag:'* ]]; then
+        ref_type='tag'
+        ref_value="${ref#--ref=tag:}"
+    elif [[ "$ref" == --ref=* ]]; then
+        echo "⚠️  Invalid use of ${ref} : Expected --ref=branch:xxx, --ref=tag:xxx , --ref=hash:xxx, --ref=hash-only:xxx" >&2
+        repo_path='' # Force show help and exit with error
+    elif [[ -n "$ref" ]]; then
+        echo "⚠️  Deprecated used of ${ref} :  Use --ref=branch:${ref} instead" >&2
+        ref_type='branch'
+        ref_value="$ref"
     fi
+
     if [[ -z "$repo_path" ]] || [[ "$repo_path" == '--'* ]]; then
         help
         exit 1
@@ -73,13 +103,16 @@ function main()
     fi
 
     full_dir="${SHARED_GIT_DIR%/}/${repo_shorter/://}"
-    [[ -z "$branch" ]] || full_dir="${full_dir}_branch_$branch"
-    [[ -z "$commit_hash" ]] || full_dir="${full_dir}_commit_${commit_hash}"
+    if [[ -n "$ref_type" ]] && [[ -n "$ref_value" ]]; then
+        full_dir="${full_dir}_ref_${ref_type}_${ref_value}"
+    fi
 
-    branch_suffix=''
-    [[ -n "$branch" ]] && branch_suffix=" [$branch]"
-    local repo_caption="${repo_shorter}${branch_suffix}"
+    _suffix=''
+    [[ -n "$ref_type" ]] && _suffix=" [$ref_type:$ref_value]"
+    local repo_caption="${repo_shorter}${_suffix}"
 
+    #########################
+    #
     local description="<EMPTY>"
     if [[ -d "$full_dir" ]] ; then
         if [[ "$option_is_refresh" == "yes" ]] || [[ "$option_is_erase" == "yes" ]] ; then
@@ -97,27 +130,50 @@ function main()
         echo -e "$repo_caption: ${BOLD_RED_STDERR:-}$description:${NC_STDERR:-} -- Clearing" >&2
         do_with_check rm -rf "$full_dir"
     fi
+    #####################
+    #
+    # Get it
+    #
 
     if [ ! -d "$full_dir" ]; then
         mkdir -p "$full_dir"
-        [[ -z "$branch" ]] && do_with_check git clone                      "$repo_path" "$full_dir"
-        [[ -z "$branch" ]] || do_with_check git clone --branch "${branch}" "$repo_path" "$full_dir"
-        [[ -z "$commit_hash" ]] || do_with_check git -C "$full_dir" checkout -q "${commit_hash}"
-        if [[ -f "${full_dir%/}/.gitmodules" ]]; then
-            do_with_check git -C "$full_dir" submodule update --init --recursive
+        cd "$full_dir"
+        if [[ "$ref_type" == '' ]] ; then
+             do_with_check git clone  "$repo_path" "$full_dir"
+        elif [[ "$ref_type" == 'branch' ]] ; then
+             do_with_check git clone --branch "$ref_value" --depth 1 "$repo_path" "$full_dir"
+        elif [[ "$ref_type" == 'hash' ]] ; then
+             do_with_check git clone  "$repo_path" "$full_dir"
+             do_with_check git -C "$full_dir" checkout -q "$ref_value"
+        elif [[ "$ref_type" == 'hash-only' ]] ; then
+             url="https://${repo_path/:/}/archive/${ref_value}.zip"
+             do_with_check wget -L -O "/tmp/${ref_value}.zip" "$url"
+             do_with_check unzip "/tmp/${ref_value}.zip" -d "${full_dir}"
+        elif [[ "$ref_type" == 'tag' ]] ; then
+             do_with_check git clone --branch "$ref_value"  --depth 1 "$repo_path" "$full_dir"
+        else
+            echo "⚠️  Invalid ref type '$ref_type' for ref '$ref_value'" >&2
+            exit 1
         fi
 
-        if [[ -f "${full_dir%/}/.pre-commit-config.yaml" ]]; then
-            if ! command -v pre-commit >/dev/null 2>&1 ; then
-                echo -e "⚠️  pre-commit not found in PATH.  Skipping pre-commit install for $repo_caption" >&2
-            else
-                pushd "$full_dir" &>/dev/null
-                do_with_check pre-commit install >&2 # --install-hooks
-                echo "⚡ pre-commit hooks installed for $repo_caption" >&2
-                popd &>/dev/null
+        if [[ "$ref_type" != 'hash-only' ]] ; then
+
+            [[ -f "${full_dir%/}/.gitmodules" ]] && do_with_check git submodule update --init --recursive
+
+            if [[ -f "${full_dir%/}/.pre-commit-config.yaml" ]]; then
+                if ! command -v pre-commit >/dev/null 2>&1 ; then
+                    echo -e "⚠️  pre-commit not found in PATH.  Skipping pre-commit install for $repo_caption" >&2
+                else
+                    pushd "$full_dir" &>/dev/null
+                    do_with_check pre-commit install >&2 # --install-hooks
+                    echo "⚡ pre-commit hooks installed for $repo_caption" >&2
+                    popd &>/dev/null
+                fi
             fi
+            description="$(git -C "$full_dir" describe --always --dirty)" || description="<INVALID>"
+        else
+            description="hash-only:${ref_value}"
         fi
-        description="$(git -C "$full_dir" describe --always --dirty)" || description="<INVALID>"
     fi
 
     local suffix=''
