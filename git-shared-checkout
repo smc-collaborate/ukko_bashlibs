@@ -3,190 +3,315 @@
 #
 # This is a utility to checkout git repositories in a shared location (e.g. under $HOME/gits-shared) and return the path to the checkout.
 # It is designed to be used in other scripts to share git checkouts across different scripts and avoid multiple checkouts of the same repository.
-# It also supports refreshing the checkout and clearing it if it is invalid.
-# Usage: git-shared-checkout [--refresh|--clear] [--quiet] <repo_path> [--ref=<ref>]   | --version
+# It also supports reloading the checkout and clearing it if it is invalid.
+# Usage: git-shared-checkout [--reload|--clear] [--quiet] <repo_path> [--ref=<ref>]   | --version
 #    eg: cat "$(git-shared-checkout https://github.com/Mac-H/ukko_gists)/readme.md"
 #
 # It needs to be possible to run without any other libraries (e.g. in a fresh docker image) and it should not produce any output on stdout except the path to the checkout (and error messages on stderr if needed).
 #
-GIT_SHARED_CHECKOUT_VERSION="0.0.5a"
+GIT_SHARED_CHECKOUT_VERSION="0.0.5c"
 [[ -z "${HOME:-}" ]] && SHARED_GIT_DIR="/usr/share/gits-shared"
 [[ -n "${HOME:-}" ]] && SHARED_GIT_DIR="${HOME}/gits-shared"
 
-function help()
+function help_with_exit()
 {
+    local error_message="${1:-}"
     {
-        echo -e "Usage: $(basename "$THIS_EXE") [--refresh|--clear] [--quiet] <repo_path> [--ref=<ref>] | --version"
+        [[ -n "$error_message" ]] && echo -e "${BOLD_RED_STDERR:-}⚠️  $error_message${NC_STDERR:-}"
+        echo -e "Usage: $(basename "$THIS_EXE") [--reload|--clear] [--quiet] <repo_path> [--ref=<ref>]"
+        echo -e "     --version=Show version : $GIT_SHARED_CHECKOUT_VERSION"
         echo -e "       <ref> = hash:###      -or-"
         echo -e "               branch:###    -or-"
         echo -e "               tag:###       -or-"
         echo -e "               hash-only:###  (No git history - only download the files)"
-        echo -e "   eg: ${BOLD_BLUE_STDERR:-}cat \"\$($(basename "$THIS_EXE") https://github.com/Mac-H/ukko_gists)/readme.md\"${NC_STDERR:-}" >&2
+        echo -e "   eg: ${BOLD_BLUE_STDERR:-}cat \"\$($(basename "$THIS_EXE") https://github.com/Mac-H/ukko_gists)/readme.md\"${NC_STDERR:-}"
     } >&2
-}
-function main()
-{
-    local option_is_refresh='no'
-    local option_is_erase='no'
-    local option_is_quiet='no'
 
+    if [[ -n "$error_message" ]]; then
+        exit 1
+    else
+        exit 0
+    fi
+}
+
+hadWarning='no'
+function giveWarning()
+{
+    hadWarning='yes'
+    [[ -n "$*" ]] && echo -e "${BOLD_RED_STDERR:-}⚠️  $*${NC_STDERR:-}" >&2
+}
+
+
+gitInfo_description=''
+gitInfo_warning=''
+##############################################
+#
+# Evalues git stored in:
+#  * repo_fullDir
+#
+# Loads:
+#  * gitInfo_description
+#  * gitInfo_warning
+#
+# Also evaluates and triggers warnings based on:
+#  * option_ref_type
+#  * option_ref_value
+#
+function load_gitInfo()
+{
+    local hash=''
+    local branch=''
+
+    gitInfo_description=''
+    gitInfo_warning=''
+
+
+    if [[ "$option_ref_type" == 'hash-only' ]] ; then
+        gitInfo_description="only:#${option_ref_value}"
+    elif ! hash="$(git -C "$repo_fullDir" describe --always --dirty 2>/dev/null)"; then
+        gitInfo_warning="<INVALID_GIT>"
+    else
+        branch="$(git -C "$repo_fullDir" branch --show-current 2>/dev/null || true)"
+        gitInfo_description="${branch}@${hash}"
+
+        if [[ "$option_ref_type" == "hash" ]] && [[ "$hash" != "$option_ref_value" ]]; then
+            gitInfo_warning="Hash mismatch from expected"
+        elif [[ "$option_ref_type" == "branch" ]] && [[ "$branch" != "$option_ref_value" ]]; then
+            gitInfo_warning="Branch mismatch from expected"
+        elif [[ "$hash" == *-dirty ]]; then
+            gitInfo_warning="There are local changes"
+
+        fi
+    fi
+}
+
+
+
+
+option_is_reload='no'
+option_is_erase='no'
+option_is_quiet='no-unless-info'
+
+option_ref_type=''
+option_ref_value=''
+option_repo_url=''
+function load_params()
+{
     [[ "${GIT_SHARED_CHECKOUT_QUIET:-}" == "yes" ]] && option_is_quiet='yes'
 
-    if [[ "${1:-}" == '--version' ]]; then
-        echo "$(basename "$THIS_EXE") version $GIT_SHARED_CHECKOUT_VERSION"
-        exit 0
-    elif [[ "${1:---help}" == '--help' ]] ; then
-        help
-        exit 0
-    fi
+    local am_processing_options='yes'
 
-    #
+    for arg in "$@"; do
+        [[ -z "$arg" ]] && continue
+        if [[ "$am_processing_options" == "yes" ]] && [[ "$arg" == '-'* ]]; then
+            if [[ "$arg" == '--' ]] ; then
+                am_processing_options='no'
+            elif [[ "$arg" == '--version' ]]; then
+                echo "$(basename "$THIS_EXE") version $GIT_SHARED_CHECKOUT_VERSION"
+                exit 0
+            elif [[ "$arg" == '--help' ]]; then
+                help_with_exit
+            elif [[ "$arg" == '--reload' ]]; then
+                option_is_reload='yes'
+            elif [[ "$arg" == '--clear' ]]; then
+                option_is_erase='yes'
+            elif [[ "$arg" == '--quiet' ]] || [[ "$arg" == '--quiet=yes' ]] ; then
+                option_is_quiet='yes'
+            elif [[ "$arg" == '--quiet=no' ]] ; then
+                option_is_quiet='no'
+            elif [[ "$arg" == '--ref='* ]]; then
+                ref_arg="${arg#--ref=}"
+                if [[ "$ref_arg" == '#'* ]]; then
+                    ref_type='hash'
+                    ref_value="${ref_arg#\#}"
+                    giveWarning "Deprecated used of --ref=#${ref_value} :  Use --ref=hash:${ref_value} instead"
+                elif [[ -n "$ref_arg" ]]; then
+                    for x in hash hash-only branch tag ; do
+                        if [[ "$ref_arg" == "$x:"* ]]; then
+                            ref_type="$x"
+                            ref_value="${ref_arg#"$x:"}"
+                            break
+                        fi
+                    done
 
-    if [[ "${1:-}" == '--refresh' ]]; then
-        option_is_refresh='yes'
-        shift
-    elif [[ "${1:-}" == '--clear' ]]; then
-        option_is_erase='yes'
-        shift
-    fi
-
-    if [[ "${1:-}" == '--quiet' ]] || [[ "${1:-}" == '--quiet=yes' ]] ; then
-        option_is_quiet='yes'
-        shift
-    elif [[ "${1:-}" == '--quiet=no' ]] ; then
-        option_is_quiet='no'
-        shift
-    fi
-
-    local repo_path="${1:-}"
-    local ref_type=''
-    local ref_value=''
-    if [[ "${2:-}" == --ref=#* ]]; then
-        ref="${ref#--ref=#}"
-
-        ref_type='hash'
-        ref_value="${ref#\#}"
-        echo "⚠️  Deprecated used of --ref=#${ref_value} :  Use --ref=hash:${ref_value} instead" >&2
-    elif [[ "${2:-}" == --ref=* ]]; then
-        ref="${2#--ref=}"
-
-        if [[ -n "$ref" ]]; then
-            for x in hash hash-only branch tag ; do
-                if [[ "$ref" == "$x:"* ]]; then
-                    ref_type="$x"
-                    ref_value="${ref#"$x:"}"
-                    break
+                    if [[ -z "$ref_type" ]]; then
+                        help_with_exit "Invalid format for ${arg@Q} : Expected --ref=branch:<branch_name> or --ref=tag:<tag_name> or --ref=hash:<hash_value> or --ref=hash-only:<hash_value>"
+                    fi
                 fi
-            done
-
-            if [[ -z "$ref_type" ]]; then
-                echo "⚠️  Invalid format for --ref=${ref} : Expected --ref=branch:<branch_name> or --ref=tag:<tag_name> or --ref=hash:<hash_value> or --ref=hash-only:<hash_value>" >&2
-                repo_path='' # Force show help and exit with error
+            else
+                help_with_exit "Unknown option ${arg@Q}"
             fi
+        elif [[ "$arg" == 'branch:'* ]]; then
+            ref_type='branch'
+            ref_value="${arg#branch:}"
+            giveWarning "Deprecated used of ${arg} :  Use --ref=${arg} instead"
+        elif [[ -z "$option_repo_url" ]]; then
+            option_repo_url="$arg"
+        else
+            help_with_exit "Multiple repository URLs provided.  Already have ${option_repo_url@Q} but adding '${arg@Q}' is an error."
         fi
-    elif [[ "${2:-}" == 'branch:'* ]]; then
-        ref_type='branch'
-        ref_value="${2#branch:}"
-        echo "⚠️  Deprecated used of ${2} :  Use --ref=$2 instead" >&2
-    elif [[ -n "${2:-}" ]]; then
-        echo "⚠️  Deprecated used of ${2} :  Use --ref=branch:${2} instead" >&2
-        ref_type='branch'
-        ref_value="${2}"
+    done
+
+    if [[ -z "$option_repo_url" ]] ; then
+        help_with_exit "Repository URL not provided."
+    fi
+}
+
+function main()
+{
+    ##############################################
+    #
+    # Load:
+    #
+    #    Value                 Default
+    #    --------------------  ----------------
+    #  * option_is_reload      'no'
+    #  * option_is_erase       'no'
+    #  * option_is_quiet       'no-unless-info'
+    #  * option_ref_type       ''
+    #  * option_ref_value      ''
+    #  * option_repo_url       ''
+
+    load_params "$@"
+
+
+    ##############################################
+    #
+    # Load:
+    #  * repo_friendlyName
+    #  * repo_fullDir
+    #
+    repo_friendlyName="${option_repo_url%.git}"
+    if [[ "$repo_friendlyName" == "https://"* ]] ; then
+        repo_friendlyName="${repo_friendlyName##https://}"
+    elif [[ "$repo_friendlyName" == "git@"*     ]] ; then
+        repo_friendlyName="${repo_friendlyName##git@}"
     fi
 
-    if [[ -z "$repo_path" ]] || [[ "$repo_path" == '--'* ]]; then
-        help
-        exit 1
+    repo_fullDir="${SHARED_GIT_DIR%/}/${repo_friendlyName/://}"
+    if [[ -n "$option_ref_type" ]] && [[ -n "$option_ref_value" ]]; then
+        repo_fullDir="${repo_fullDir}_ref_${option_ref_type}_${option_ref_value}"
     fi
 
-    repo_shorter="${repo_path%.git}"
-
-    repo_shorter="${repo_path%.git}"
-    if [[ "$repo_shorter" == "https://"* ]] ; then
-        repo_shorter="${repo_shorter##https://}"
-    elif [[ "$repo_shorter" == "git@"*     ]] ; then
-        repo_shorter="${repo_shorter##git@}"
-    fi
-
-    full_dir="${SHARED_GIT_DIR%/}/${repo_shorter/://}"
-    if [[ -n "$ref_type" ]] && [[ -n "$ref_value" ]]; then
-        full_dir="${full_dir}_ref_${ref_type}_${ref_value}"
-    fi
-
-    _suffix=''
-    [[ -n "$ref_type" ]] && _suffix=" [$ref_type:$ref_value]"
-    local repo_caption="${repo_shorter}${_suffix}"
+    [[ -n "$option_ref_type" ]] && repo_friendlyName+=" [$option_ref_type:$option_ref_value]"
 
     #########################
     #
-    local description="<EMPTY>"
-    if [[ -d "$full_dir" ]] ; then
-        if [[ "$option_is_refresh" == "yes" ]] || [[ "$option_is_erase" == "yes" ]] ; then
-            do_with_check  rm -rf "$full_dir" && description="<ERASED>"
-            description="<ERASED>"
-        else
-            description="$(git -C "$full_dir" describe --always --dirty 2>/dev/null)" || description="<INVALID_GIT>"
-        fi
-    fi
-    echo "$full_dir"
-    if [[ "$option_is_erase" == "yes" ]]; then
-        echo -e "$repo_caption: ${BOLD_BLUE_STDERR:-}$description:${NC_STDERR:-} ℹ️  ERASED" >&2
-        return 0
-    elif [[ "$description" == "<INVALID_GIT>" ]]; then
-        echo -e "$repo_caption: ${BOLD_RED_STDERR:-}$description:${NC_STDERR:-} -- Clearing" >&2
-        do_with_check rm -rf "$full_dir"
-    fi
-    #####################
+    # Load:
+    # * gitInfo_description
+    # * gitInfo_warning
     #
-    # Get it
+    gitInfo_description=""
+    gitInfo_warning=''
+    if [[ ! -d "$repo_fullDir" ]] ; then
+        gitInfo_description="EMPTY"
+    elif [[ "$option_is_reload" == "yes" ]] || [[ "$option_is_erase" == "yes" ]] ; then
+        do_with_check  rm -rf "$repo_fullDir"
+        gitInfo_description="ERASED"
+    else
+        load_gitInfo "$repo_fullDir" "$option_ref_type" "$option_ref_value"
+    fi
+
+    {
+        echo "ℹ️  !! -----------------------------------------------------"
+        echo "ℹ️  !! * repo_friendlyName   = $repo_friendlyName"
+        echo "ℹ️  !! * repo_fullDir        = $repo_fullDir"
+        echo "ℹ️  !! "
+        echo "ℹ️  !! * option_repo_url     = $option_repo_url"
+        echo "ℹ️  !! * option_ref_type     = $option_ref_type"
+        echo "ℹ️  !! * option_ref_value    = $option_ref_value"
+        echo "ℹ️  !! "
+        echo "ℹ️  !! * gitInfo_description = $gitInfo_description"
+        echo "ℹ️  !! * gitInfo_warning     = $gitInfo_warning"
+        echo "ℹ️  !! -----------------------------------------------------"
+    } >&2
+
+
+    #########################
+    #
+    # Clear if needed
+    #
+    if [[ "$option_is_erase" == "yes" ]]; then
+        echo -e "$repo_caption: ${BOLD_BLUE_STDERR:-}ℹ️  $gitInfo_description${NC_STDERR:-} " >&2
+        return 0
+    fi
+
+    if [[ "$gitInfo_warning" == "<INVALID_GIT>" ]]; then
+        giveAlert "$repo_caption: $gitInfo_description -- Clearing"
+        do_with_check rm -rf "$repo_fullDir"
+    fi
+
+    #########################
+    #
+    #
     #
 
-    if [ ! -d "$full_dir" ]; then
-        mkdir -p "$full_dir"
-        cd "$full_dir"
-        if [[ "$ref_type" == '' ]] ; then
-             do_with_check git clone  "$repo_path" "$full_dir"
-        elif [[ "$ref_type" == 'branch' ]] ; then
-             do_with_check git clone --branch "$ref_value" --depth 1 "$repo_path" "$full_dir"
-        elif [[ "$ref_type" == 'hash' ]] ; then
-             do_with_check git clone  "$repo_path" "$full_dir"
-             do_with_check git -C "$full_dir" checkout -q "$ref_value"
-        elif [[ "$ref_type" == 'hash-only' ]] ; then
-             url="https://${repo_path/:/}/archive/${ref_value}.zip"
-             do_with_check wget -L -O "/tmp/${ref_value}.zip" "$url"
-             do_with_check unzip "/tmp/${ref_value}.zip" -d "${full_dir}"
-        elif [[ "$ref_type" == 'tag' ]] ; then
-             do_with_check git clone --branch "$ref_value"  --depth 1 "$repo_path" "$full_dir"
+    if [[ ! -d "$repo_fullDir" ]]; then
+
+        mkdir -p "$repo_fullDir"
+        cd "$repo_fullDir"
+
+        [[ "$option_is_quiet" == 'no-unless-info' ]] && echo -e "Loading from cloud: ${BOLD_BLUE_STDERR:-}$repo_caption${NC_STDERR:-} into $repo_fullDir" >&2 && option_is_quiet='no'
+
+        #########################
+        #
+        # Load the repo into $repo_fullDir
+        #
+        # Update:
+        #  * gitInfo_description
+        #  * gitInfo_warning
+        #
+
+        if [[ "$option_ref_type" == '' ]] ; then
+             do_with_check git clone  "$option_repo_url" "$repo_fullDir"
+        elif [[ "$option_ref_type" == 'branch' ]] ; then
+             do_with_check git clone --branch "$option_ref_value" --depth 1 "$option_repo_url" "$repo_fullDir"
+        elif [[ "$option_ref_type" == 'hash' ]] ; then
+             do_with_check git clone  "$option_repo_url" "$repo_fullDir"
+             do_with_check git -C "$repo_fullDir" checkout -q "$option_ref_value"
+        elif [[ "$option_ref_type" == 'hash-only' ]] ; then
+             url="https://${option_repo_url/:/}/archive/${option_ref_value}.zip"
+             do_with_check wget -L -O "/tmp/${option_ref_value}.zip" "$url"
+             do_with_check unzip "/tmp/${option_ref_value}.zip" -d "${repo_fullDir}"
+        elif [[ "$option_ref_type" == 'tag' ]] ; then
+             do_with_check git clone --branch "$option_ref_value"  --depth 1 "$option_repo_url" "$repo_fullDir"
         else
-            echo "⚠️  Invalid ref type '$ref_type' for ref '$ref_value'" >&2
+            giveAlert "Invalid ref type '$option_ref_type' for ref '$option_ref_value'"
             exit 1
         fi
 
-        if [[ "$ref_type" != 'hash-only' ]] ; then
+        if [[ "$option_ref_type" != 'hash-only' ]] ; then
 
-            [[ -f "${full_dir%/}/.gitmodules" ]] && do_with_check git submodule update --init --recursive
+            [[ -f "${repo_fullDir%/}/.gitmodules" ]] && do_with_check git submodule update --init --recursive
 
-            if [[ -f "${full_dir%/}/.pre-commit-config.yaml" ]]; then
+            if [[ -f "${repo_fullDir%/}/.pre-commit-config.yaml" ]]; then
                 if ! command -v pre-commit >/dev/null 2>&1 ; then
-                    echo -e "⚠️  pre-commit not found in PATH.  Skipping pre-commit install for $repo_caption" >&2
+                    giveAlert "pre-commit not found in PATH.  Skipping pre-commit install for $repo_caption"
                 else
-                    pushd "$full_dir" &>/dev/null
+                    pushd "$repo_fullDir" &>/dev/null
                     do_with_check pre-commit install >&2 # --install-hooks
                     echo "⚡ pre-commit hooks installed for $repo_caption" >&2
                     popd &>/dev/null
                 fi
             fi
-            description="$(git -C "$full_dir" describe --always --dirty)" || description="<INVALID>"
-        else
-            description="hash-only:${ref_value}"
         fi
+        load_gitInfo
     fi
 
-    local suffix=''
-    [[ "$description" == *'-dirty' ]] && suffix="${BOLD_RED_STDERR}  ⚠️  There are local changes${NC_STDERR}"
-    if [[ "$option_is_quiet" == "no" ]] || [[ -n "$suffix" ]]; then
-        echo -e "Using: ${BOLD_BLUE_STDERR:-}$repo_caption [$description]${NC_STDERR:-}$suffix" >&2
-        echo -e "       └── $full_dir" >&2
+    #################################################################################################################################
+    # Summarise based on:
+    #   * repo_friendlyName
+    #   * gitInfo_description
+    #   * gitInfo_warning
+    #   * repo_fullDir
+    #
+    local repo_caption="$repo_friendlyName"
+    [[ -n $gitInfo_description ]] &&  repo_caption+=" [$gitInfo_description]"
+    [[ -n "$gitInfo_warning"   ]] &&  gitInfo_warning=" ${BOLD_RED_STDERR}⚠️  $gitInfo_warning${NC_STDERR}"
+
+    if [[ "$option_is_quiet" != "yes" ]] || [[ -n "$gitInfo_warning" ]] || [[ "$hadWarning" == "yes" ]]; then
+        echo -e "Using: ${BOLD_BLUE_STDERR:-}$repo_caption${NC_STDERR:-}$gitInfo_warning" >&2
+        echo -e "       └── $repo_fullDir" >&2
     fi
     exit 0
 }
@@ -245,7 +370,7 @@ EXE_NAME="$(basename "$THIS_EXE")"
 if [[ "${1:-}" == '--install' ]]; then
     do_install_directly
 elif [[ "${1:-}" == "--remove" ]] || [[ "${1:-}" == "--uninstall" ]]; then
-    (sleep 0.5 && echo "Removing $THIS_EXE" && rm -f "$THIS_EXE" && echo "Removed $THIS_EXE") &
+    (sleep 0.5 && rm -f "$THIS_EXE" && echo "Removed $THIS_EXE") &
 else
     main "$@"
 fi
