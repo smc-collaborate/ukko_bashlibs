@@ -492,11 +492,7 @@ function installLibIfNeeded()
     fi
     echo -e "   Linking ${BOLD_BLUE_STDOUT:-}$(displayPath "$dest_dir_parent")/${libname}${NC_STDOUT:-} → Shared ${BOLD_BLUE_STDOUT:-}${git_url} ${lib_ver}${NC_STDOUT:-} ($lib_ver_reason)"
 
-    if [[ "${lib_ver}" = "#"* ]] ; then
-        do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" --hash="${lib_ver#\#}"
-    else
-        do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" "$lib_ver"
-    fi
+    do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" --ref="${lib_ver}"
 
     local description
     if ! description="$(git -C "$dest_dir" describe --always --dirty)" ; then
