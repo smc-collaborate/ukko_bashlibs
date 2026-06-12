@@ -1,4 +1,4 @@
-#!/bin/bash -eu
+#!/bin/bash -u
 
 #
 # This is a utility to checkout git repositories in a shared location (e.g. under $HOME/gits-shared) and return the path to the checkout.
@@ -34,7 +34,10 @@ function app_help()
     echo -e "               tag:###       -or-"
     echo -e "               hash-only:###  (No git history - only download the files)"
     echo -e "   eg: ${COLOR_BOLD_BLUE:-}cat \"\$($EXE_NAME https://github.com/Mac-H/ukko_gists)/readme.md\"${COLOR_OFF:-}"
+    echo -e ""
+    echo -e " -or-  $EXE_NAME [--list]"
 }
+
 
 ####################################
 # Custom load of parameters:
@@ -50,11 +53,11 @@ function app_help()
 #
 # This is called from load_params and should not be called directly.
 #
-#  * app_load_params 'all-defaults'   - Load all default values for options
-#  * app_load_params 'option' <arg>   - Load an option from an argument (e.g. --reload, --ref=branch:main)
-#  * app_load_params 'direct' <arg>   - Load a direct argument (e.g. the repo URL)
+#  * app_load_param 'all-defaults'       - Load all default values for options
+#  * app_load_param 'option-arg' <arg>   - Load an option from an argument (e.g. --reload, --ref=branch:main)
+#  * app_load_param 'direct-arg' <arg>   - Load a direct argument (e.g. the repo URL)
 #
-function app_load_params()
+function app_load_param()
 {
     local kind="$1"
     local arg="${2:-}"
@@ -67,12 +70,16 @@ function app_load_params()
         option_ref_type=''
         option_ref_value=''
         option_repo_url=''
+        option_list_shared_checkouts='no'
 
         [[ "${GIT_SHARED_CHECKOUT_QUIET:-}" == "yes" ]] && option_is_quiet='yes'
     elif [[ "$kind" == 'direct-arg' ]]; then
+        #
+        # Direct arguments  (Typically not starting with - or --.  However if '--' is provided, then all subsequent arguments are treated as direct arguments even if they start with - or --)
+        #
         if [[ "$arg" == 'branch:'* ]]; then
-            ref_type='branch'
-            ref_value="${arg#branch:}"
+            option_ref_type='branch'
+            option_ref_value="${arg#branch:}"
             giveWarning "Deprecated used of ${arg} :  Use --ref=${arg} instead"
         elif [[ -z "$option_repo_url" ]]; then
             option_repo_url="$arg"
@@ -82,7 +89,12 @@ function app_load_params()
             return 1
         fi
     elif [[ "$kind" == 'option-arg' ]]; then
-        if [[ "$arg" == '--reload' ]]; then
+        #
+        # Option arguments  (Typically of the form -n or --name)
+        #
+        if [[ "$arg" == '--list' ]] ; then
+            option_list_shared_checkouts=yes
+        elif [[ "$arg" == '--reload' ]]; then
             option_is_reload='yes'
         elif [[ "$arg" == '--clear' ]]; then
             option_is_erase='yes'
@@ -93,25 +105,26 @@ function app_load_params()
         elif [[ "$arg" == '--ref='* ]]; then
             ref_arg="${arg#--ref=}"
             if [[ "$ref_arg" == '#'* ]]; then
-                ref_type='hash'
-                ref_value="${ref_arg#\#}"
-                giveWarning "Deprecated used of --ref=#${ref_value} :  Use --ref=hash:${ref_value} instead"
+                option_ref_type='hash'
+                option_ref_value="${ref_arg#\#}"
+                giveWarning "Deprecated used of --ref=#${option_ref_value} :  Use --ref=hash:${option_ref_value} instead"
             elif [[ -n "$ref_arg" ]]; then
                 for x in hash hash-only branch tag ; do
                     if [[ "$ref_arg" == "$x:"* ]]; then
-                        ref_type="$x"
-                        ref_value="${ref_arg#"$x:"}"
+                        option_ref_type="$x"
+                        option_ref_value="${ref_arg#"$x:"}"
                         break
                     fi
                 done
-                [[ -z "$ref_type" ]] && help_with_exit "Invalid format for ${arg@Q} : Expected --ref=branch:<branch_name> or --ref=tag:<tag_name> or --ref=hash:<hash_value> or --ref=hash-only:<hash_value>"
+                [[ -z "$option_ref_type" ]] && help_with_exit "Invalid format for ${arg@Q} : Expected --ref=branch:<branch_name> or --ref=tag:<tag_name> or --ref=hash:<hash_value> or --ref=hash-only:<hash_value>"
             fi
         else
             return 1
         fi
     else
-        giveWarning "Invalid use:  app_load_params(${*@Q}) ignored"
+        giveWarning "Invalid use:  app_load_param(${*@Q}) ignored"
     fi
+
 
     return 0
 }
@@ -134,6 +147,11 @@ function app_load_params()
 function app_run()
 {
 
+    if [[ "$option_list_shared_checkouts" == "yes" ]] ; then
+        doListSharedCheckouts
+        [[ -n "$option_repo_url" ]] || return 0
+    fi
+
     [[ -n "$option_repo_url" ]] || do_exit_with_help "Repository URL not provided."
 
 
@@ -152,8 +170,10 @@ function app_run()
     fi
 
     repo_fullDir="${SHARED_GIT_DIR%/}/${repo_friendlyName/://}"
-    if [[ -n "$option_ref_type" ]] && [[ -n "$option_ref_value" ]]; then
-        repo_fullDir="${repo_fullDir}_ref_${option_ref_type}_${option_ref_value}"
+    if [[ -n "$option_ref_type" ]] ; then
+        repo_fullDir="${repo_fullDir%/}/${option_ref_type}_${option_ref_value}"
+    else
+        repo_fullDir="${repo_fullDir%/}/default_branch"
     fi
 
     [[ -n "$option_ref_type" ]] && repo_friendlyName+=" [$option_ref_type:$option_ref_value]"
@@ -175,7 +195,9 @@ function app_run()
         load_gitInfo "$repo_fullDir" "$option_ref_type" "$option_ref_value"
     fi
 
+    if true ; then
     {
+        echo "ℹ️  !! ${THIS_EXE} $*"
         echo "ℹ️  !! -----------------------------------------------------"
         echo "ℹ️  !! * repo_friendlyName   = $repo_friendlyName"
         echo "ℹ️  !! * repo_fullDir        = $repo_fullDir"
@@ -188,19 +210,19 @@ function app_run()
         echo "ℹ️  !! * gitInfo_warning     = $gitInfo_warning"
         echo "ℹ️  !! -----------------------------------------------------"
     } >&2
-
+    fi
 
     #########################
     #
     # Clear if needed
     #
     if [[ "$option_is_erase" == "yes" ]]; then
-        echo -e "$repo_caption: ${BOLD_BLUE_STDERR:-}ℹ️  $gitInfo_description${NC_STDERR:-} " >&2
+        echo -e "$repo_friendlyName: ${BOLD_BLUE_STDERR:-}ℹ️  $gitInfo_description${NC_STDERR:-} " >&2
         return 0
     fi
 
     if [[ "$gitInfo_warning" == "<INVALID_GIT>" ]]; then
-        giveAlert "$repo_caption: $gitInfo_description -- Clearing"
+        giveAlert "$repo_friendlyName: $gitInfo_description -- Clearing"
         do_with_check rm -rf "$repo_fullDir"
     fi
 
@@ -212,9 +234,9 @@ function app_run()
     if [[ ! -d "$repo_fullDir" ]]; then
 
         mkdir -p "$repo_fullDir"
-        cd "$repo_fullDir"
+        cd "$repo_fullDir" || true
 
-        [[ "$option_is_quiet" == 'no-unless-info' ]] && echo -e "Loading from cloud: ${BOLD_BLUE_STDERR:-}$repo_caption${NC_STDERR:-} into $repo_fullDir" >&2 && option_is_quiet='no'
+        [[ "$option_is_quiet" == 'no-unless-info' ]] && echo -e "Loading from cloud: ${BOLD_BLUE_STDERR:-}$repo_friendlyName${NC_STDERR:-} into $repo_fullDir" >&2 && option_is_quiet='no'
 
         #########################
         #
@@ -249,12 +271,13 @@ function app_run()
 
             if [[ -f "${repo_fullDir%/}/.pre-commit-config.yaml" ]]; then
                 if ! command -v pre-commit >/dev/null 2>&1 ; then
-                    giveAlert "pre-commit not found in PATH.  Skipping pre-commit install for $repo_caption"
+                    giveAlert "pre-commit not found in PATH.  Skipping pre-commit install for $repo_friendlyName"
+                elif ! pushd "$repo_fullDir" &>/dev/null ; then
+                    giveAlert "Unable to enter directory $repo_fullDir to install pre-commit hooks.  Skipping pre-commit install for $repo_friendlyName"
                 else
-                    pushd "$repo_fullDir" &>/dev/null
                     do_with_check pre-commit install >&2 # --install-hooks
-                    echo "⚡ pre-commit hooks installed for $repo_caption" >&2
-                    popd &>/dev/null
+                    echo "⚡ pre-commit hooks installed for $repo_friendlyName" >&2
+                    popd &>/dev/null || true
                 fi
             fi
         fi
@@ -269,13 +292,14 @@ function app_run()
     #   * repo_fullDir
     #
     local repo_caption="$repo_friendlyName"
-    [[ -n $gitInfo_description ]] &&  repo_caption+=" [$gitInfo_description]"
-    [[ -n "$gitInfo_warning"   ]] &&  gitInfo_warning=" ${BOLD_RED_STDERR}⚠️  $gitInfo_warning${NC_STDERR}"
+    [[ -n $gitInfo_description ]] &&  repo_caption+=" $gitInfo_description"
+    [[ -n "$gitInfo_warning"   ]] &&  gitInfo_warning=" ${COLOUR[BOLD_RED_STDERR]:-}⚠️  $gitInfo_warning${COLOUR[OFF_STDERR]:-}"
 
     if [[ "$option_is_quiet" != "yes" ]] || [[ -n "$gitInfo_warning" ]] || [[ "$hadWarning" == "yes" ]]; then
-        echo -e "Using: ${BOLD_BLUE_STDERR:-}$repo_caption${NC_STDERR:-}$gitInfo_warning" >&2
+        echo -e "Using: ${COLOUR[BOLD_BLUE_STDERR]:-}${repo_caption}${COLOUR[OFF_STDERR]:-}$gitInfo_warning" >&2
         echo -e "       └── $repo_fullDir" >&2
     fi
+    echo "$repo_fullDir"
     exit 0
 }
 
@@ -285,7 +309,11 @@ function app_run()
 #
 # Utils for this code
 #
-
+function doListSharedCheckouts()
+{
+    echo "$SHARED_GIT_DIR_DISPLAY"
+    tree "$SHARED_GIT_DIR" --noreport -L 4 | tail +2
+}
 
 
 
@@ -321,28 +349,27 @@ function load_gitInfo()
         branch="$(git -C "$repo_fullDir" branch --show-current 2>/dev/null || true)"
         gitInfo_description="${branch}@${hash}"
 
-        if [[ "$option_ref_type" == "hash" ]] && [[ "$hash" != "$option_ref_value" ]]; then
+        if [[ "$option_ref_type" == "hash" ]] && [[ "${hash%-dirty}" != "$option_ref_value" ]]; then
             gitInfo_warning="Hash is not the expected value: #$option_ref_value"
         elif [[ "$option_ref_type" == "branch" ]] && [[ "$branch" != "$option_ref_value" ]]; then
             gitInfo_warning="Branch is not the expected value: ${option_ref_value:-}"
         else
             if [[ "$option_ref_type" == "hash" ]] ; then
-                gitInfo_description="${branch}@${hash}🔒"
-            elif [[ "$option_ref_type" == "branch" ]] ; then
-                gitInfo_description="${branch}🔓@${hash}"
-            elif [[ "$option_ref_type" == "tag" ]] ; then
-                gitInfo_description+="=tag:${option_ref_value}🔓"
+            if [[ "${hash}" == *-dirty ]]; then
+                gitInfo_description="🔓  "
             else
-                gitInfo_description+="🔓"
+                gitInfo_description="🔒  "
+            fi
+            elif [[ "$option_ref_type" == "branch" ]] ; then
+                gitInfo_description="🔓  @${hash}"
+
+            elif [[ "$option_ref_type" == "tag" ]] ; then
+                gitInfo_description+="🔓  "
+            else
+                gitInfo_description+="🔓  "
             fi
         fi
-        if [[ "$option_ref_type" == "hash" ]] ; then
-           [[ "$hash" != "$option_ref_value" ]] ||  gitInfo_warning="Hash mismatch from expected"
-        elif [[ "$option_ref_type" == "branch" ]] && [[ "$branch" != "$option_ref_value" ]]; then
-
-            [[ "$hash" == *-dirty ]] && gitInfo_warning="There are local changes"
-
-        fi
+        [[ "$hash" != *-dirty ]] || gitInfo_warning="There are local changes"
     fi
 }
 
@@ -356,7 +383,7 @@ function load_gitInfo()
 #  * APP_DESCRIPTION | Optional
 #
 #  * app_help        | Optional but recommended
-#  * app_load_params | Optional but recommended
+#  * app_load_param  | Optional but recommended
 #  * app_run         | Required
 #
 # It makes available:
@@ -385,7 +412,7 @@ function giveCodeHelp()
     echo "  * APP_DESCRIPTION | Optional"
     echo ""
     echo "  * app_help        | Optional but recommended"
-    echo "  * app_load_params | Optional but recommended"
+    echo "  * app_load_param  | Optional but recommended"
     echo "  * app_run         | Required"
     echo ""
     echo " It makes available:"
@@ -398,8 +425,6 @@ function giveCodeHelp()
     echo "   "
 
     coloursShow
-
-
 }
 
 function do_exit_with_help()
@@ -448,8 +473,8 @@ function load_params()
 
     function _app_get_params()
     {
-        declare -F app_help 1>/dev/null 2>/dev/null || return 0
-        app_load_params "$@"
+        declare -F app_load_param  &> /dev/null  || return 0
+        app_load_param "$@"
     }
 
     _app_get_params 'all-defaults'
@@ -474,11 +499,11 @@ function load_params()
                 exit 0
             elif [[ "$arg" == '--code-help' ]] ; then
                 giveCodeHelp='yes'
-            elif ! _app_get_params 'option' "$arg"; then
+            elif ! _app_get_params 'option-arg' "$arg"; then
                 help_with_exit "Unknown option ${arg@Q}"
             fi
         else
-            _app_get_params 'direct' "$arg" || help_with_exit "Unknown argument ${arg@Q}"
+            _app_get_params 'direct-arg' "$arg" || help_with_exit "Unknown argument ${arg@Q}"
         fi
     done
 
@@ -574,7 +599,6 @@ function colours_load()
 {
     local arg="${1:-auto}"  # yes|no|auto
 
-    echo  "Loading Colours: $arg"
     local kind
     local colourName
     local colourCode
@@ -612,8 +636,8 @@ function coloursShow()
         echo '╭─────────────────────────────────────────────────────────'
         {
             echo "Colour support is available in the script:"
-            echo "  eg: echo -e \"This is \${COLOUR[BOLD_BLUE_STDOUT]:-}blue\${COLOUR[OFF:-]}\""
-            echo "      echo -e \"This is \${COLOUR[BOLD_BLUE_STDERR]:-}blue\${COLOUR[OFF:-]}\" >&2"
+            echo "  eg: echo -e \"This is \${COLOUR[BOLD_BLUE_STDOUT]:-}blue\${COLOUR[OFF_STDOUT]:-}\""
+            echo "      echo -e \"This is \${COLOUR[BOLD_BLUE_STDERR]:-}blue\${COLOUR[OFF_STDERR]:-}\" >&2"
             echo ""
             echo "Redirection of stdout and stderr will automatically disable colours for that stream (e.g. \"echo test > out.txt\" or \"echo test 2> err.txt\")"
             echo "You can also force enable or disable colours with the --colours option (e.g. \"--colours=yes\" or \"--colours=no\")"
@@ -621,14 +645,13 @@ function coloursShow()
             echo 'The colours available in the current configuration are:'
             for colourName in "${!COLOUR[@]}"; do
                 if [[ "$colourName" != "OFF"* ]]; then
-                    #if [[ "$colourName" == *"_STDOUT" ]]; then
-                    #    offCode="OFF_STDOUT"
-                    #elif [[ "$colourName" == *"_STDERR" ]]; then
-                    #    offCode="OFF_STDERR"
-                    #else
-                    #    offCode="OFF"
-                    #fi
-                    offCode="OFF"
+                    if [[ "$colourName" == *"_STDOUT" ]]; then
+                        offCode="OFF_STDOUT"
+                    elif [[ "$colourName" == *"_STDERR" ]]; then
+                        offCode="OFF_STDERR"
+                    else
+                        offCode="OFF"
+                    fi
 
                     printf ' • echo -e %-32s%-22s%-28s → ' "\"\${COLOUR[$colourName]:-}\"" "${colourName@Q}" "\"\${COLOUR[$offCode]:-}\""
                     echo -e "${COLOUR[$colourName]}$colourName${COLOUR[$offCode]:-}"
@@ -652,6 +675,7 @@ function coloursShow()
 
 colours_load 'auto'
 
+# |x| echo "ℹ️  !! RUNNING:  $0 $*" >&2
 load_params "$@"
 
 app_run "$@"
