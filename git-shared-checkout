@@ -84,9 +84,7 @@ function app_load_param()
         elif [[ -z "$option_repo_url" ]]; then
             option_repo_url="$arg"
         else
-            help_with_exit "Multiple repository URLs provided.  Already have ${option_repo_url@Q} but adding '${arg@Q}' is an error."
-
-            return 1
+            do_exit_with_help "Multiple repository URLs provided.  Already have ${option_repo_url@Q} but adding '${arg@Q}' is an error."
         fi
     elif [[ "$kind" == 'option-arg' ]]; then
         #
@@ -116,7 +114,7 @@ function app_load_param()
                         break
                     fi
                 done
-                [[ -z "$option_ref_type" ]] && help_with_exit "Invalid format for ${arg@Q} : Expected --ref=branch:<branch_name> or --ref=tag:<tag_name> or --ref=hash:<hash_value> or --ref=hash-only:<hash_value>"
+                [[ -z "$option_ref_type" ]] && do_exit_with_help "Invalid format for ${arg@Q} : Expected --ref=branch:<branch_name> or --ref=tag:<tag_name> or --ref=hash:<hash_value> or --ref=hash-only:<hash_value>"
             fi
         else
             return 1
@@ -321,14 +319,6 @@ function getDirs()
     find "$baseDir" -mindepth 1 -maxdepth 1 -type d | sed --unbuffered "s|^${baseDir%/}/||g"
 }
 
-function padRight()
-{
-    local width="$1"
-    local text="$2"
-
-    printf "%-${width}s" "$text"
-}
-
 function dump_gitInfoOnDir()
 {
     local _dir="$1"
@@ -376,8 +366,6 @@ function dump_gitInfoOnDir()
 
     printf "%-*s" "$((_maxLen - _a - _b - 3))" ""
     echo -e "${COLOUR[BOLD_BLUE_STDOUT]:-}${gitInfo_description}${COLOUR[OFF_STDOUT]:-}$gitInfo_warning"
-
-
 }
 function doListSharedCheckouts()
 {
@@ -583,10 +571,10 @@ function load_params()
             elif [[ "$arg" == '--code-help' ]] ; then
                 giveCodeHelp='yes'
             elif ! _app_get_params 'option-arg' "$arg"; then
-                help_with_exit "Unknown option ${arg@Q}"
+                do_exit_with_help "Unknown option ${arg@Q}"
             fi
         else
-            _app_get_params 'direct-arg' "$arg" || help_with_exit "Unknown argument ${arg@Q}"
+            _app_get_params 'direct-arg' "$arg" || do_exit_with_help "Unknown argument ${arg@Q}"
         fi
     done
 

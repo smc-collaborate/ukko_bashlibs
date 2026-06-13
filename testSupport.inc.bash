@@ -1,5 +1,6 @@
 # shellcheck disable=all
 # source this file - not a script to run directly
+echo "⚠️  ℹ️  ❓  Deprecated - REFACTOR TO USE 'libs-test-funcs.inc.bash' instead" >&2
 
 libSupport_testName=""
 libSupport_testCmd=""
