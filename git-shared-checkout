@@ -193,7 +193,7 @@ function app_run()
         load_gitInfo
     fi
 
-    if true ; then
+    if false ; then
     {
         echo "ℹ️  !! ${THIS_EXE} $*"
         echo "ℹ️  !! -----------------------------------------------------"
@@ -466,9 +466,9 @@ function load_gitInfo()
 #    giveWarning "<warning message>" - Give a warning message that will be shown at the end of processing (if any)
 #
 #  Colours:
-#    BOLD_BLUE_STDERR, BOLD_RED_STDERR, NC_STDERR - For colored output to stderr (e.g. for warnings and info)
-#    BOLD_BLUE_STDOUT, BOLD_RED_STDOUT, NC_STDOUT - For colored output to stdout (if needed)
-#    BOLD_BLUE       , BOLD_RED       , NC        - As standard
+#    BOLD_BLUE_STDERR, BOLD_RED_STDERR, OFF_STDERR - For colored output to stderr (e.g. for warnings and info)
+#    BOLD_BLUE_STDOUT, BOLD_RED_STDOUT, OFF_STDOUT - For colored output to stdout (if needed)
+#    BOLD_BLUE_FORCED, BOLD_RED_FORCED, OFF_FORCED - As standard
 #
 #  These will not be blanked out if redirecting (or --no-colours) passed
 #

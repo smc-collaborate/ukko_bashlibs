@@ -2,7 +2,7 @@
 THIS_EXE="$(readlink -f "${BASH_SOURCE[0]}")"
 THIS_DIR="$(realpath -m "$(dirname "$THIS_EXE")")"
 #|Logging| echo "🛈  THIS_EXE = [$THIS_EXE], ORIG_PWD = [${ORIG_PWD:-NONE}]"
-source "${THIS_DIR%/}/utils.inc.bash"
+source "${THIS_DIR%/}/lib-common.inc.bash"
 
 function give_help()
 {
@@ -84,8 +84,8 @@ function install_and_start_service()
             doRun-groupedOutput journalctl _PID="${service_pid}" --no-pager
 
             echo     "Use: "
-            echo  -e "     • ${BOLD_BLUE_STDOUT:-}journalctl _PID=${service_pid} -f${NC_STDOUT:-} to follow the logs  (Ensure you have used 'flushCache' in the printing functions to avoid buffering delays)"
-            echo  -e "     • ${BOLD_BLUE_STDOUT:-}systemctl status ${serviceName}.service${NC_STDOUT:-} to check the service status"
+            echo  -e "     • ${COLOUR[BOLD_BLUE_STDOUT]:-}journalctl _PID=${service_pid} -f${COLOUR[OFF_STDOUT]:-} to follow the logs  (Ensure you have used 'flushCache' in the printing functions to avoid buffering delays)"
+            echo  -e "     • ${COLOUR[BOLD_BLUE_STDOUT]:-}systemctl status ${serviceName}.service${COLOUR[OFF_STDOUT]:-} to check the service status"
         } | withPrefix "         "
     else
         echo "      ❌  Not active  [$status:$return_value]"

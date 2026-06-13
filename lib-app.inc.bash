@@ -59,7 +59,7 @@ source "${BUILD_FUNCS_DIR%/}/lib-common.inc.bash"
 # │     esac
 # │ }
 # │ # shellcheck disable=SC1091
-# │ source "$(git-shared-checkout git@github.com:smc-collaborate/ukko_bashlibs --ref="${UKKO_BASHLIBS_REF:-}")/utils.inc.bash"
+# │ source "$(git-shared-checkout git@github.com:smc-collaborate/ukko_bashlibs --ref="${UKKO_BASHLIBS_REF:-}")/lib-common.inc.bash"
 # ╰─────────────────────────────────────────────────────────────────────────────────────
 #
 # It makes available:

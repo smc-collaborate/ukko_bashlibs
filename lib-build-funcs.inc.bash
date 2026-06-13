@@ -3,7 +3,7 @@
 #
 #
 # IMPORT THIS AS A 'source' script
-#   source bashlib/build-funcs.inc.bash
+#   source bashlib/lib-build-funcs.inc.bash
 #
 
 
@@ -39,12 +39,12 @@
 #| │     do_pyInstall_orClean cmds/smc-jsonbin-unpack.py
 #| │ }
 #| │
-#| │ THIS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
-#| │ source "${THIS_DIR%/}/../tools/build-funcs.inc.bash"
+#| │ source "$(git-shared-checkout git@github.com:smc-collaborate/ukko_bashlibs --ref="${UKKO_BASHLIBS_REF:-}")/lib-build-funcs.inc.bash"
 #| ╰─────────────────────────────────────────────────────────
 ############################
 BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
-source "${BUILD_FUNCS_DIR%/}/utils.inc.bash"
+source "${BUILD_FUNCS_DIR%/}/lib-common.inc.bash"
+INSTALL_DIR="${HOME%/}/.local/bin" ; [[ "$EUID" -eq 0 ]] && INSTALL_DIR="/usr/local/bin"
 
 if [[ -z "${APPS_NAME:-}" ]] ; then
     APPS_NAME="${THIS_DIR##*/}"
@@ -69,7 +69,7 @@ function set_ENV_ROOT()
             ENV_ROOT="$(dirname "${ENV_ROOT%/}")"
         done
         if [[ -n "${failLocation}" ]] ; then
-            echo -e "❌  ERROR: Could not find requirements*.txt in ${BOLD_BLUE_STDOUT:-}${THIS_DIR}${NC_STDOUT:-} or any parent directory up to ${BOLD_BLUE_STDOUT:-}${failLocation}${NC_STDOUT:-}"
+            echo -e "❌  ERROR: Could not find requirements*.txt in ${COLOURS[BOLD_BLUE_STDOUT]:-}${THIS_DIR}${COLOURS[OFF_STDOUT]:-} or any parent directory up to ${COLOURS[BOLD_BLUE_STDOUT]:-}${failLocation}${COLOURS[OFF_STDOUT]:-}"
             echo    "    Define the location manually as 'ENV_ROOT' environment variable if needed."
 
             exit 1
@@ -107,7 +107,7 @@ function setRosDistroIfNeeded()
         exit 1
     else
         export ROS_DISTRO="${ROS_DISTRO:-${distros[0]##*/}}"
-        echo "ℹ️  Detected ROS_DISTRO: ${BOLD_BLUE_STDOUT:-}${ROS_DISTRO}${NC_STDOUT:-}"
+        echo "ℹ️  Detected ROS_DISTRO: ${COLOUR[BOLD_BLUE_STDOUT]:-}${ROS_DISTRO}${COLOUR[OFF_STDOUT]:-}"
     fi
 }
 
@@ -368,11 +368,11 @@ function do_setupPython3()
         python3_subver="$(python3 --version | sed 's|^Python 3\.||g' | sed 's|\..*$||g')"
 
         if [[ "${1:-}" == '--dev' ]] ; then
-            echo -e "   Detected ${BOLD_BLUE_STDOUT:-}Python 3.${python3_subver}${NC_STDOUT:-}  -- Installing development packages"
+            echo -e "   Detected ${COLOUR[BOLD_BLUE_STDOUT]:-}Python 3.${python3_subver}${COLOUR[OFF_STDOUT]:-}  -- Installing development packages"
             installPkgIfNeeded build-essential    #< Depending on environment, this may be needed to build some Python dependencies (e.g., 'cryptography' package)
             installPkgIfNeeded python3-dev
         else
-            echo -e "   Detected ${BOLD_BLUE_STDOUT:-}Python 3.${python3_subver}${NC_STDOUT:-}  -- Not installing development packages"
+            echo -e "   Detected ${COLOUR[BOLD_BLUE_STDOUT]:-}Python 3.${python3_subver}${COLOUR[OFF_STDOUT]:-}  -- Not installing development packages"
         fi
 
         export PYTHON_VERSION="3.${python3_subver}"
@@ -427,7 +427,7 @@ function do_setupPythonVenv_orClean()
                     FATAL_FAILURE_NO_RETURN "Failed to setup Python virtual environment: No requirements suitable file found"
                 fi
             fi
-            [[ -d .venv ]] && [[ ! -w .venv ]] && FATAL_FAILURE_NO_RETURN "The virtual environment '${ENV_ROOT%/}/.venv' is not writable.\nTry ${BOLD_BLUE_STDOUT:-}${THIS_EXE_FROM_ORIGINAL_PWD:-"$0"} --clean${NC_STDOUT:-}"
+            [[ -d .venv ]] && [[ ! -w .venv ]] && FATAL_FAILURE_NO_RETURN "The virtual environment '${ENV_ROOT%/}/.venv' is not writable.\nTry ${COLOUR[BOLD_BLUE_STDOUT]:-}${ORIG_EXE_CMD_AS_DISPLAY:-"$0"} --clean${COLOUR[OFF_STDOUT]:-}"
             python3 -m venv .venv
             if [[ -f ".venv/bin/activate" ]] ; then
                 # shellcheck disable=SC1091
@@ -497,7 +497,7 @@ function installLibIfNeeded()
     else
 
 
-        echo -e "   Linking ${BOLD_BLUE_STDOUT:-}$(displayPath "$dest_dir_parent")/${libname}${NC_STDOUT:-} → Shared ${BOLD_BLUE_STDOUT:-}${git_url} ${lib_ver}${NC_STDOUT:-} ($lib_ver_reason)"
+        echo -e "   Linking ${COLOUR[BOLD_BLUE_STDOUT]:-}$(displayPath "$dest_dir_parent")/${libname}${COLOUR[OFF_STDOUT]:-} → Shared ${COLOUR[BOLD_BLUE_STDOUT]:-}${git_url} ${lib_ver}${COLOUR[OFF_STDOUT]:-} ($lib_ver_reason)"
 
         do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" --ref="${lib_ver}"
 
@@ -556,10 +556,10 @@ function do_dumpInstalledExe()
         return 1
     fi
     if ! _version="$(${__exe_name} --version 2>/dev/null )" ; then
-        echo -e "   ❌ FAILED TO INSTALL: ${__exe_name}   Confirm installation issues with ${BOLD_BLUE_STDOUT:-}${__exe_name} --version${NC_STDOUT:-}"
+        echo -e "   ❌ FAILED TO INSTALL: ${__exe_name}   Confirm installation issues with ${COLOUR[BOLD_BLUE_STDOUT]:-}${__exe_name} --version${COLOUR[OFF_STDOUT]:-}"
         return 1
     fi
-    echo -e "    • Installed: ${BOLD_BLUE_STDOUT:-}${_version}${NC_STDOUT:-}" | sed --unbuffered '1!s/^/                 /'
+    echo -e "    • Installed: ${COLOUR[BOLD_BLUE_STDOUT]:-}${_version}${COLOUR[OFF_STDOUT]:-}" | sed --unbuffered '1!s/^/                 /'
 
     if [[ "${SUGGEST_HOW_TO_INSTALL_TO_ROOT:-}" == 'yes' ]] ; then
         if [[ "$_run_from_here" == "${HOME%/}/.local/bin/${__exe_name}" ]] ; then
@@ -819,7 +819,7 @@ if [[ "$(type -t main)" != 'function' ]] ; then
         if [[ "${AM_CLEANING:-}" != 'yes' ]] && [[ "${ENSURE_SUBMODULES_ARE_CLONED:-yes}" == 'yes' ]] ;   then
             # shellcheck disable=SC1091
             if git -C "${THIS_DIR}" submodule 2>/dev/null | grep '^-' ; then
-                echo -e "⚠️  Submodules not loaded.  Please use: '${BOLD_BLUE_STDOUT}$(git_with_location_params_nice "${THIS_DIR}") submodule update --init --recursive${NC_STDOUT}'"
+                echo -e "⚠️  Submodules not loaded.  Please use: '${COLOUR[BOLD_BLUE_STDOUT]:-}$(git_with_location_params_nice "${THIS_DIR}") submodule update --init --recursive${COLOUR[OFF_STDOUT]:-}'"
                 echo    "    (You could also have used 'git clone --recurse-submodules' when cloning originally)"
                 exit 3
             fi

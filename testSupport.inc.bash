@@ -1,6 +1,6 @@
 # shellcheck disable=all
 # source this file - not a script to run directly
-echo "⚠️  ℹ️  ❓  Deprecated - REFACTOR TO USE 'libs-test-funcs.inc.bash' instead" >&2
+echo "⚠️  ℹ️  ❓  Deprecated - REFACTOR TO USE 'lib-test-funcs.inc.bash' instead" >&2
 
 libSupport_testName=""
 libSupport_testCmd=""
@@ -577,7 +577,7 @@ function commandComplete_dumpCmdInfo()
 
     local pre_gap
     # |Logging| echo "!!!!!!!!!!!(5) [$libSupport_testCmd]:libSupport_testVerificationResult=$libSupport_testVerificationResult"
-    echo -e "${PRINT_LEFT_PREFIX} │ Command: ${BOLD_BLUE_STDOUT:-}${libSupport_testCmd% | cat}${NC_STDOUT:-}"
+    echo -e "${PRINT_LEFT_PREFIX} │ Command: ${COLOUR[BOLD_BLUE_STDOUT]:-}${libSupport_testCmd% | cat}${COLOUR[OFF_STDOUT]:-}"
     sed --unbuffered -e 's/\r.*\r//' -e "s|^⚠️|⚠ |g"  -e "s|^❌|✗ |g" -e "s|^ℹ️ |🛈 |g"  -e "s/^/${PRINT_LEFT_PREFIX} │  /" < "$stderr_file"
     sed --unbuffered -e 's/\r.*\r//' -e "s/^/${PRINT_LEFT_PREFIX} │ ❓  /" < "$failure_notes_file"
 
@@ -617,10 +617,10 @@ function RunWithNoteFailure()
     didFail='yes'
 
     if [[ "${TEST_SUPPORT_EXIT_ON_FAIL:-}" == "yes" ]] ; then
-        echo -e "Exiting due to ${BOLD_BLUE_STDOUT:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${NC_STDOUT:-}"
+        echo -e "Exiting due to ${COLOUR[BOLD_BLUE_STDOUT]:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${COLOUR[OFF_STDOUT]:-}"
         exit 1
     else
-        echo -e "   Use: ${BOLD_BLUE_STDOUT:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${NC_STDOUT:-} to exit on first failure"
+        echo -e "   Use: ${COLOUR[BOLD_BLUE_STDOUT]:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${COLOUR[OFF_STDOUT]:-} to exit on first failure"
         return 1
     fi
 }

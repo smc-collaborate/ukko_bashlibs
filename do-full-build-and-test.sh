@@ -149,7 +149,7 @@ function doSetupRawEnvironment()
     #|Extras| fi
 }
 
-source "$(dirname "${BASH_SOURCE[0]}")/build-funcs.inc.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/lib-build-funcs.inc.bash"
 
 doFullBuildAndTest "$@"
 #

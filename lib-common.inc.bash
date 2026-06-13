@@ -3,7 +3,7 @@
 #
 #
 # IMPORT THIS AS A 'source' script
-#   source tools/utils.inc.bash
+#   source tools/lib-common.inc.bash
 #
 
 
@@ -230,18 +230,18 @@ if [[ -z "${ORIG_PWD:-}" ]] ; then
 #|Logging|  echo "🛈  ORIG_PWD already set to [${ORIG_PWD}]"
 fi
 
-if [[ -z "${THIS_EXE_FROM_ORIGINAL_PWD:-}" ]] ; then
-  export THIS_EXE_FROM_ORIGINAL_PWD ;
-  if [[ $0 == /* ]] ; then
-    THIS_EXE_FROM_ORIGINAL_PWD="$0"
-  else
-    THIS_EXE_FROM_ORIGINAL_PWD="$(relativeToOrigPwd "$0")"
-    if [[ "${THIS_EXE_FROM_ORIGINAL_PWD}" != *"/"* ]] ; then
-      THIS_EXE_FROM_ORIGINAL_PWD="./${THIS_EXE_FROM_ORIGINAL_PWD}"
-    fi
-  fi
-  extraVerboseLogging "THIS_EXE_FROM_ORIGINAL_PWD = [${THIS_EXE_FROM_ORIGINAL_PWD}]"
-fi
+#|x|if [[ -z "${THIS_EXE_FROM_ORIGINAL_PWD:-}" ]] ; then
+#|x|  export THIS_EXE_FROM_ORIGINAL_PWD ;
+#|x|  if [[ $0 == /* ]] ; then
+#|x|    THIS_EXE_FROM_ORIGINAL_PWD="$0"
+#|x|  else
+#|x|    THIS_EXE_FROM_ORIGINAL_PWD="$(relativeToOrigPwd "$0")"
+#|x|    if [[ "${THIS_EXE_FROM_ORIGINAL_PWD}" != *"/"* ]] ; then
+#|x|      THIS_EXE_FROM_ORIGINAL_PWD="./${THIS_EXE_FROM_ORIGINAL_PWD}"
+#|x|    fi
+#|x|  fi
+#|x|  extraVerboseLogging "THIS_EXE_FROM_ORIGINAL_PWD = [${THIS_EXE_FROM_ORIGINAL_PWD}]"
+#|x|fi
 
 if [[ -z "${ORIG_PARAMS:-}" ]] ; then
   export ORIG_PARAMS ; ORIG_PARAMS=("$@")

@@ -3,7 +3,7 @@
 #
 #
 # IMPORT THIS AS A 'source' script
-#   source ukko_bashlibs/test-funcs.inc.bash
+#   source ukko_bashlibs/lib-test-funcs.inc.bash
 #
 #
 # Example usage:
@@ -35,13 +35,13 @@
 #| │  }
 #| │
 #| │ BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/../ukko_bashlibs/"
-#| │ # shellcheck source=../ukko_bashlibs/test-funcs.inc.bash
-#| │ source "${BUILD_FUNCS_DIR%/}/test-funcs.inc.bash"
+#| │ # shellcheck source=../ukko_bashlibs/lib-test-funcs.inc.bash
+#| │ source "${BUILD_FUNCS_DIR%/}/lib-test-funcs.inc.bash"
 #| ╰─────────────────────────────────────────────────────────
 ############################
 
 BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
-source "${BUILD_FUNCS_DIR%/}/utils.inc.bash"
+source "${BUILD_FUNCS_DIR%/}/lib-common.inc.bash"
 
 TEST_SCRIPT_NAME="$(basename "${THIS_EXE}" ".sh")"
 
@@ -280,7 +280,7 @@ else
     echo_prefix_end="│   "
 fi
 
-echo -e "Running ${YELLOW_STDOUT:-}${THIS_EXE_AS_DISPLAY}${NC_STDOUT:-}"
+echo -e "Running ${COLOUR[YELLOW_STDOUT]:-}${THIS_EXE_AS_DISPLAY}${COLOUR[OFF_STDOUT]:-}"
 
 main_result_code=0
 
