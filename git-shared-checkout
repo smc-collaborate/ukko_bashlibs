@@ -222,7 +222,7 @@ function app_run()
     fi
 
     if [[ "$gitInfo_warning" == "<INVALID_GIT>" ]]; then
-        giveAlert "$repo_friendlyName: $gitInfo_description -- Clearing"
+        giveWarning "$repo_friendlyName: $gitInfo_description -- Clearing"
         do_with_check rm -rf "$repo_fullDir"
     fi
 
@@ -261,7 +261,7 @@ function app_run()
         elif [[ "$option_ref_type" == 'tag' ]] ; then
              do_with_check git clone --branch "$option_ref_value"  --depth 1 "$option_repo_url" "$repo_fullDir"
         else
-            giveAlert "Invalid ref type '$option_ref_type' for ref '$option_ref_value'"
+            giveWarning "Invalid ref type '$option_ref_type' for ref '$option_ref_value'"
             exit 1
         fi
 
@@ -271,9 +271,9 @@ function app_run()
 
             if [[ -f "${repo_fullDir%/}/.pre-commit-config.yaml" ]]; then
                 if ! command -v pre-commit >/dev/null 2>&1 ; then
-                    giveAlert "pre-commit not found in PATH.  Skipping pre-commit install for $repo_friendlyName"
+                    giveWarning "pre-commit not found in PATH.  Skipping pre-commit install for $repo_friendlyName"
                 elif ! pushd "$repo_fullDir" &>/dev/null ; then
-                    giveAlert "Unable to enter directory $repo_fullDir to install pre-commit hooks.  Skipping pre-commit install for $repo_friendlyName"
+                    giveWarning "Unable to enter directory $repo_fullDir to install pre-commit hooks.  Skipping pre-commit install for $repo_friendlyName"
                 else
                     do_with_check pre-commit install >&2 # --install-hooks
                     echo "⚡ pre-commit hooks installed for $repo_friendlyName" >&2
