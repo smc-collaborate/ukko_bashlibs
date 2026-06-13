@@ -490,19 +490,27 @@ function installLibIfNeeded()
             lib_ver_reason="⚠️  No version specified - \$${libname_ver} not set)"
         fi
     fi
-    echo -e "   Linking ${BOLD_BLUE_STDOUT:-}$(displayPath "$dest_dir_parent")/${libname}${NC_STDOUT:-} → Shared ${BOLD_BLUE_STDOUT:-}${git_url} ${lib_ver}${NC_STDOUT:-} ($lib_ver_reason)"
 
-    do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" --ref="${lib_ver}"
+    if [[ "${AM_CLEANING}" == 'yes' ]] ; then
+        do_remove_link "$dest_dir"
+        return $?
+    else
 
-    local description
-    if ! description="$(git -C "$dest_dir" describe --always --dirty)" ; then
-        echo "   ❌ Invalid git repository at $(displayPath "$dest_dir") for ${git_url}"
-        return 1
 
+        echo -e "   Linking ${BOLD_BLUE_STDOUT:-}$(displayPath "$dest_dir_parent")/${libname}${NC_STDOUT:-} → Shared ${BOLD_BLUE_STDOUT:-}${git_url} ${lib_ver}${NC_STDOUT:-} ($lib_ver_reason)"
+
+        do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" --ref="${lib_ver}"
+
+        local description
+        if ! description="$(git -C "$dest_dir" describe --always --dirty)" ; then
+            echo "   ❌ Invalid git repository at $(displayPath "$dest_dir") for ${git_url}"
+            return 1
+
+        fi
+
+        [[ "$description" == *-dirty ]] && description="${description} ⚠️  With uncommited changes"
+        echo "    • GitHash: ${description}"
     fi
-
-    [[ "$description" == *-dirty ]] && description="${description} ⚠️  With uncommited changes"
-    echo "    • GitHash: ${description}"
 }
 
 function installPkgIfNeeded()
