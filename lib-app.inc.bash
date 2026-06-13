@@ -2,7 +2,7 @@
 BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 source "${BUILD_FUNCS_DIR%/}/lib-common.inc.bash"
 
-##############################################################################################################################################
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #
 # This is a standard template for bash scripts that uses:
 #  * APP_VERSION     | Optional but recommended
@@ -30,7 +30,7 @@ source "${BUILD_FUNCS_DIR%/}/lib-common.inc.bash"
 # │     echo "Hello: $option_person"
 # │     giveWarning "This is a warning message - these are sent to stderr"
 # │     echo "This is some more output"
-# │     echo -e "Hidden coding help is available with with: ${COLOUR[BOLD_BLUE_STDOUT]:-}$CMD_AS_DISPLAY --code-help${COLOUR[OFF_STDOUT]:-}"
+# │     echo -e "Hidden coding help is available with: ${COLOUR[VIVID_BLUE_STDOUT]:-}$CMD_AS_DISPLAY --code-help${COLOUR[OFF_STDOUT]:-}"
 # │ }
 # │ function app_load_param()
 # │ {
@@ -84,12 +84,15 @@ function giveCodeHelp()
     # this is dumped with the hidden option '--code-help'
 
     echo " This is a standard template for bash scripts that uses:"
-    echo "  * APP_VERSION     | Optional but recommended"
-    echo "  * APP_DESCRIPTION | Optional"
+    echo "  * APP_VERSION                                   | Optional but recommended"
+    echo "  * APP_DESCRIPTION                               | Optional"
     echo ""
-    echo "  * app_help        | Optional but recommended"
-    echo "  * app_load_param  | Optional but recommended"
-    echo "  * app_run         | Required"
+    echo "  * app_help()                                    | Optional but recommended"
+    echo "  * app_load_param_defaults()                     | Optional but recommended"
+    echo "  * app_load_param_option_name_value(name,value)  | Optional but recommended"
+    echo "  * app_load_param_option_name_only(name)         | Optional"
+    echo "  * app_load_param_direct_value(value)            | Optional"
+    echo "  * app_run()                                     | Required"
     echo ""
     echo " It makes available:"
     echo ""
@@ -113,32 +116,32 @@ function do_exit_with_help()
 {
     local fatal_error_message="${1:-}"
 
-    [[ -n "$fatal_error_message" ]] && echo -e "${COLOUR[BOLD_RED_STDERR]:-}❌  $fatal_error_message${COLOUR[OFF_STDERR]:-}" >&2
+    [[ -n "$fatal_error_message" ]] && echo -e "${COLOUR[VIVID_RED_STDERR]:-}❌  $fatal_error_message${COLOUR[OFF_STDERR]:-}" >&2
+
+    COLOUR[VIVID_BLUE_HELP]="${COLOUR[VIVID_BLUE_STDOUT]:-}"
+    COLOUR[VIVID_RED_HELP]="${COLOUR[VIVID_RED_STDOUT]:-}"
+    COLOUR[OFF_HELP]="${COLOUR[OFF_STDOUT]:-}"
+
     {
-        COLOUR_BOLD_BLUE="${COLOUR[BOLD_BLUE_STDOUT]:-}"
-        COLOUR_BOLD_RED="${COLOUR[BOLD_RED_STDOUT]:-}"
-        COLOUR_OFF="${COLOUR[OFF_STDOUT]:-}"
         [[ -n "${APP_DESCRIPTION:-}" ]] && echo -e "$CMD_AS_DISPLAY: $APP_DESCRIPTION"
         if declare -F app_help >/dev/null 2>&1 ; then
             app_help
             echo ""
             echo -e "Additional functions:"
         else
-            echo -e "Usage: ${COLOUR_BOLD_BLUE}$CMD_AS_DISPLAY <parameters>${COLOUR_OFF}"
+            echo -e "Usage: ${COLOUR[VIVID_BLUE_STDOUT]:-}$CMD_AS_DISPLAY <parameters>${COLOUR[OFF_STDOUT]:-}"
             echo -e ""
             echo -e "Parameters:"
         fi
         echo -e "     --help     : Give this help message"
-        [[ -n "${APP_VERSION:-}" ]] && echo -e "     --version  : Give version : ${COLOUR_BOLD_BLUE}$APP_VERSION${COLOUR_OFF}"
+        [[ -n "${APP_VERSION:-}" ]] && echo -e "     --version  : Give version : ${COLOUR[VIVID_BLUE_STDOUT]:-}$APP_VERSION${COLOUR[OFF_STDOUT]:-}"
 
         _installDirShow="$(displayPath "$INSTALL_DIR")"
-        [[ ":$PATH:" == *":${INSTALL_DIR}:"* ]] || _installDirShow+="${COLOUR_BOLD_RED}  ⚠️  This should be added to \$PATH${COLOUR_OFF}"
+        [[ ":$PATH:" == *":${INSTALL_DIR}:"* ]] || _installDirShow+="${COLOUR[VIVID_RED_STDOUT]:-}  ⚠️  This should be added to \$PATH${COLOUR[OFF_STDOUT]:-}"
         if [[ "$INSTALLATION_NOTE" == "OK" ]] ; then
             echo -e "     --uninstall: Uninstalls from $_installDirShow"
         else
             echo -e "     --install  : Installs to $_installDirShow "
-
-
         fi
         echo -e "     --colours=no|yes|auto  (Default 'auto')"
         echo ""
@@ -156,17 +159,40 @@ function do_exit_with_help()
 }
 
 
+function app_load_param_validate_from_list()
+{
+    local name="$1"
+    local value="$2"
+    local validation="$3"
+    echo "Validating value for $name=$value against expected values: $validation"
+
+    [[ ",$validation," != *",${value},"* ]] || do_exit_with_help "Invalid value for $name=$value Expected one of [$validation]"
+}
+
 function load_params()
 {
     local am_processing_options='yes'
-
-    function _app_get_params()
+    function _app_get_param_defaults()
     {
-        declare -F app_load_param  &> /dev/null  || return 0
-        app_load_param "$@"
+        declare -F app_load_param_defaults  &> /dev/null  || return 0 ; app_load_param_defaults
+    }
+    function _app_get_param_option_name_value()
+    {
+        declare -F app_load_param_option_name_value  &> /dev/null  && app_load_param_option_name_value "$1" "$2"
     }
 
-    _app_get_params 'all-defaults'
+    function _app_get_param_option_name_only()
+    {
+        declare -F app_load_param_option_name_only  &> /dev/null  && app_load_param_option_name_only "$1"
+    }
+
+    function _app_get_param_direct_value()
+    {
+        declare -F app_load_param_direct_value  &> /dev/null  && app_load_param_direct_value "$1"
+    }
+
+
+    _app_get_param_defaults
     local giveCodeHelp='no'
     for arg in "$@"; do
         [[ -z "$arg" ]] && continue
@@ -188,11 +214,13 @@ function load_params()
                 exit 0
             elif [[ "$arg" == '--code-help' ]] ; then
                 giveCodeHelp='yes'
-            elif ! _app_get_params 'option-arg' "$arg"; then
-                do_exit_with_help "Unknown option ${arg@Q}"
+            elif [[ "$arg" == "--"*"="* ]] ; then
+                _app_get_param_option_name_value "${arg%%=*}" "${arg#*=}" || do_exit_with_help "Unknown named option ${arg@Q}"
+            else
+                _app_get_param_option_name_only  "${arg}"                 || do_exit_with_help "Unknown option ${arg@Q}"
             fi
         else
-            _app_get_params 'direct-arg' "$arg" || do_exit_with_help "Unknown argument ${arg@Q}"
+            _app_get_param_direct_value "$arg" || do_exit_with_help "Unknown direct argument ${arg@Q}"
         fi
     done
 
@@ -212,7 +240,7 @@ function do_with_check()
         caption="${1#--caption=}"
         shift
     else
-        caption_decorated="${COLOUR[BOLD_BLUE_STDERR]:-}$caption${COLOUR[OFF_STDERR]:-}"
+        caption_decorated="${COLOUR[VIVID_BLUE_STDERR]:-}$caption${COLOUR[OFF_STDERR]:-}"
     fi
     local status=0
     local suffix=''
@@ -223,8 +251,8 @@ function do_with_check()
         true #echo -e "          -- OK" >&2
     else
         [[ "$status" == 1 ]] || suffix=" with status $status"
-        echo -e "Ran    :${COLOUR[BOLD_RED_STDERR]:-}$caption${COLOUR[OFF_STDERR]:-} -- Failed$suffix" >&2
-        [[ "$caption" == "$*" ]] || echo -e "Command: ${COLOUR[BOLD_BLUE_STDERR]:-}$*${COLOUR[OFF_STDERR]:-}" >&2
+        echo -e "Ran    :${COLOUR[VIVID_RED_STDERR]:-}$caption${COLOUR[OFF_STDERR]:-} -- Failed$suffix" >&2
+        [[ "$caption" == "$*" ]] || echo -e "Command: ${COLOUR[VIVID_BLUE_STDERR]:-}$*${COLOUR[OFF_STDERR]:-}" >&2
         exit 1
     fi
 }
@@ -233,8 +261,9 @@ function do_with_check()
 
 function do_install_directly()
 {
+    local INSTALL_DIR="${HOME%/}/.local/bin" ; [[ "$EUID" -eq 0 ]] && INSTALL_DIR="/usr/local/bin"
     if [[ "$INSTALLATION_NOTE" == "OK" ]]; then
-        echo "✅ $app_name_and_version is already successfully installed to  ${INSTALL_DIR@Q}"
+        echo -e "${COLOUR[VIVID_GREEN_STDOUT]:-}✅ $app_name_and_version is already successfully installed to  ${INSTALL_DIR@Q}${COLOUR[OFF_STDOUT]:-}"
         return 0
     fi
 
@@ -256,7 +285,7 @@ function giveWarning()
 {
     # shellcheck disable=SC2034
     hadWarning='yes'
-    [[ -n "$*" ]] && echo -e "${COLOUR[BOLD_RED_STDERR]:-}⚠️  $*${COLOUR[OFF_STDERR]:-}" >&2
+    [[ -n "$*" ]] && echo -e "${COLOUR[VIVID_RED_STDERR]:-}⚠️  $*${COLOUR[OFF_STDERR]:-}" >&2
 }
 
 
@@ -284,8 +313,8 @@ function coloursShow()
         echo '╭─────────────────────────────────────────────────────────'
         {
             echo "Colour support is available in the script:"
-            echo "  eg: echo -e \"This is \${COLOUR[BOLD_BLUE_STDOUT]:-}blue\${COLOUR[OFF_STDOUT]:-}\""
-            echo "      echo -e \"This is \${COLOUR[BOLD_BLUE_STDERR]:-}blue\${COLOUR[OFF_STDERR]:-}\" >&2"
+            echo "  eg: echo -e \"This is \${COLOUR[VIVID_BLUE_STDOUT]:-}blue\${COLOUR[OFF_STDOUT]:-}\""
+            echo "      echo -e \"This is \${COLOUR[VIVID_BLUE_STDERR]:-}blue\${COLOUR[OFF_STDERR]:-}\" >&2"
             echo ""
             echo "Redirection of stdout and stderr will automatically disable colours for that stream (e.g. \"echo test > out.txt\" or \"echo test 2> err.txt\")"
             echo "You can also force enable or disable colours with the --colours option (e.g. \"--colours=yes\" or \"--colours=no\")"

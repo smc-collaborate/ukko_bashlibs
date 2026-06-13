@@ -209,6 +209,8 @@ fi
 # shellcheck disable=SC2317
 function get_GOLD_REF_DIR()
 {
+    [[ -n "${GOLD_REF_DIR:-}" ]] && return 0
+
     export PARENT_DIR ; PARENT_DIR="$(dirname "${THIS_DIR}")"
     export GRANDPARENT_DIR ; GRANDPARENT_DIR=$(dirname "${PARENT_DIR}")
     #export SAMPLES_DIR="${PARENT_DIR}/samples"

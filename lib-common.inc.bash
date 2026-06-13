@@ -171,10 +171,10 @@ declare -A COLOUR_CODES=(
         [YELLOW]='\033[0;33m'
         [BLUE]='\033[0;34m'
 
-        [BOLD_RED]='\033[1;31m'
-        [BOLD_GREEN]='\033[1;32m'
-        [BOLD_YELLOW]='\033[1;33m'
-        [BOLD_BLUE]="\033[1;34m"
+        [VIVID_RED]='\033[1;31m'
+        [VIVID_GREEN]='\033[1;32m'
+        [VIVID_YELLOW]='\033[1;33m'
+        [VIVID_BLUE]="\033[1;34m"
 
         [OFF]='\033[0m'
 )
@@ -544,15 +544,15 @@ function dump_sharedCheckout_gitInfoOnDir()
     [[ -n $gitInfo_description ]] &&  repo_caption+=" $gitInfo_description"
     local _dirAsPrinted="$_dispDir"
 
-    [[ -z "$gitInfo_warning"   ]] || gitInfo_warning=" ${COLOUR[BOLD_RED_STDOUT]:-}⚠️  $gitInfo_warning${COLOUR[OFF_STDOUT]:-}"
+    [[ -z "$gitInfo_warning"   ]] || gitInfo_warning=" ${COLOUR[VIVID_RED_STDOUT]:-}⚠️  $gitInfo_warning${COLOUR[OFF_STDOUT]:-}"
     _checkoutDirPart="${y##*/}"
     _repoDirPart="${y%/*}"
-    echo -en  "${shared_topLevelDirAsDisplay%/}/${COLOUR[BOLD_BLUE_STDOUT]:-}${_repoDirPart}${COLOUR[OFF_STDOUT]:-}/${_checkoutDirPart} "
+    echo -en  "${shared_topLevelDirAsDisplay%/}/${COLOUR[VIVID_BLUE_STDOUT]:-}${_repoDirPart}${COLOUR[OFF_STDOUT]:-}/${_checkoutDirPart} "
 
     _a="${#_repoDirPart}"
     _b="${#_checkoutDirPart}"
 
     _padTo="$((_padding - _a - _b - 3))"
     [[ "$_padTo" -gt 0 ]] && printf "%-*s" "$_padTo" ""
-    echo -e "${COLOUR[BOLD_BLUE_STDOUT]:-}${gitInfo_description}${COLOUR[OFF_STDOUT]:-}$gitInfo_warning"
+    echo -e "${COLOUR[VIVID_BLUE_STDOUT]:-}${gitInfo_description}${COLOUR[OFF_STDOUT]:-}$gitInfo_warning"
 }

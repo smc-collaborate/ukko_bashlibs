@@ -10,26 +10,6 @@ libSupport_testDir=$(mktemp -d -t tmp_testComparisons_XXXXXX) || {
     echo "❌ Failed to create temporary directory for tests"
     exit 1
 }
-# Colors for output
-if [[ -t 1 ]] ; then
-    # Enable colors only if output is a terminal
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    BLUE='\033[0;34m'
-    BOLD_BLUE="\033[1;34m"
-    BOLD_RED="\033[1;31m"
-    NC='\033[0m' # No Color
-else
-    # Disable colors if output is not a terminal (e.g., when redirected to a file)
-    RED=''
-    GREEN=''
-    YELLOW=''
-    BLUE=''
-    BOLD_BLUE=''
-    BOLD_RED=''
-    NC=''
-fi
 
 function makeNamedNonUniqueTempFile()
 {
@@ -577,7 +557,7 @@ function commandComplete_dumpCmdInfo()
 
     local pre_gap
     # |Logging| echo "!!!!!!!!!!!(5) [$libSupport_testCmd]:libSupport_testVerificationResult=$libSupport_testVerificationResult"
-    echo -e "${PRINT_LEFT_PREFIX} │ Command: ${COLOUR[BOLD_BLUE_STDOUT]:-}${libSupport_testCmd% | cat}${COLOUR[OFF_STDOUT]:-}"
+    echo -e "${PRINT_LEFT_PREFIX} │ Command: ${COLOUR[VIVID_BLUE_STDOUT]:-}${libSupport_testCmd% | cat}${COLOUR[OFF_STDOUT]:-}"
     sed --unbuffered -e 's/\r.*\r//' -e "s|^⚠️|⚠ |g"  -e "s|^❌|✗ |g" -e "s|^ℹ️ |🛈 |g"  -e "s/^/${PRINT_LEFT_PREFIX} │  /" < "$stderr_file"
     sed --unbuffered -e 's/\r.*\r//' -e "s/^/${PRINT_LEFT_PREFIX} │ ❓  /" < "$failure_notes_file"
 
@@ -617,10 +597,10 @@ function RunWithNoteFailure()
     didFail='yes'
 
     if [[ "${TEST_SUPPORT_EXIT_ON_FAIL:-}" == "yes" ]] ; then
-        echo -e "Exiting due to ${COLOUR[BOLD_BLUE_STDOUT]:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${COLOUR[OFF_STDOUT]:-}"
+        echo -e "Exiting due to ${COLOUR[VIVID_BLUE_STDOUT]:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${COLOUR[OFF_STDOUT]:-}"
         exit 1
     else
-        echo -e "   Use: ${COLOUR[BOLD_BLUE_STDOUT]:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${COLOUR[OFF_STDOUT]:-} to exit on first failure"
+        echo -e "   Use: ${COLOUR[VIVID_BLUE_STDOUT]:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${COLOUR[OFF_STDOUT]:-} to exit on first failure"
         return 1
     fi
 }

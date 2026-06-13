@@ -84,8 +84,8 @@ function install_and_start_service()
             doRun-groupedOutput journalctl _PID="${service_pid}" --no-pager
 
             echo     "Use: "
-            echo  -e "     • ${COLOUR[BOLD_BLUE_STDOUT]:-}journalctl _PID=${service_pid} -f${COLOUR[OFF_STDOUT]:-} to follow the logs  (Ensure you have used 'flushCache' in the printing functions to avoid buffering delays)"
-            echo  -e "     • ${COLOUR[BOLD_BLUE_STDOUT]:-}systemctl status ${serviceName}.service${COLOUR[OFF_STDOUT]:-} to check the service status"
+            echo  -e "     • ${COLOUR[VIVID_BLUE_STDOUT]:-}journalctl _PID=${service_pid} -f${COLOUR[OFF_STDOUT]:-} to follow the logs  (Ensure you have used 'flushCache' in the printing functions to avoid buffering delays)"
+            echo  -e "     • ${COLOUR[VIVID_BLUE_STDOUT]:-}systemctl status ${serviceName}.service${COLOUR[OFF_STDOUT]:-} to check the service status"
         } | withPrefix "         "
     else
         echo "      ❌  Not active  [$status:$return_value]"
