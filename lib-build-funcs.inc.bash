@@ -367,12 +367,20 @@ function do_setupPython3()
     if [[ "$AM_CLEANING" != 'yes' ]] ; then
         python3_subver="$(python3 --version | sed 's|^Python 3\.||g' | sed 's|\..*$||g')"
 
-        if [[ "${1:-}" == '--dev' ]] ; then
-            echo -e "   Detected ${COLOUR[VIVID_BLUE_STDOUT]:-}Python 3.${python3_subver}${COLOUR[OFF_STDOUT]:-}  -- Installing development packages"
+        local _devReason=''
+        source /etc/os-release
+        cat /etc/os-release
+        if [[ "${PRETTY_NAME:-}" == *"development"* ]] ; then
+            _devReason="$PRETTY_NAME"
+        elif [[ "${1:-}" == '--dev' ]] ; then
+            _devReason='--dev provided'
+        fi
+        if [[ -n "$_devReason" ]] ; then
+            echo -e "   Detected ${COLOUR[VIVID_BLUE_STDOUT]:-}Python 3.${python3_subver}${COLOUR[OFF_STDOUT]:-}  -- Installing development packages [$_devReason]"
             installPkgIfNeeded build-essential    #< Depending on environment, this may be needed to build some Python dependencies (e.g., 'cryptography' package)
             installPkgIfNeeded python3-dev
         else
-            echo -e "   Detected ${COLOUR[VIVID_BLUE_STDOUT]:-}Python 3.${python3_subver}${COLOUR[OFF_STDOUT]:-}  -- Not installing development packages"
+            echo -e "   Detected ${COLOUR[VIVID_BLUE_STDOUT]:-}Python 3.${python3_subver}${COLOUR[OFF_STDOUT]:-}  in ${PRETTY_NAME:-}"
         fi
 
         export PYTHON_VERSION="3.${python3_subver}"
@@ -427,6 +435,7 @@ function do_setupPythonVenv_orClean()
                     FATAL_FAILURE_NO_RETURN "Failed to setup Python virtual environment: No requirements suitable file found"
                 fi
             fi
+            [[ -d .venv ]] && [[ $(stat -c '%u' .venv) -ne $(id -u) ]] && [[ -w .venv ]] && rm -rf .venv  # Ensure that we are the owner of the
             [[ -d .venv ]] && [[ ! -w .venv ]] && FATAL_FAILURE_NO_RETURN "The virtual environment '${ENV_ROOT%/}/.venv' is not writable.\nTry ${COLOUR[VIVID_BLUE_STDOUT]:-}${ORIG_EXE_CMD_AS_DISPLAY:-"$0"} --clean${COLOUR[OFF_STDOUT]:-}"
             python3 -m venv .venv
             if [[ -f ".venv/bin/activate" ]] ; then
