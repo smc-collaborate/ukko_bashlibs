@@ -858,7 +858,7 @@ if [[ "$(type -t main)" != 'function' ]] ; then
 
 fi
 if [[ "${1:-}" == '--help' ]] || [[ "${1:-}" == '-h' ]] ; then
-    echo "Usage: ${THIS_EXE_AS_DISPLAY} [--clean | --fresh] [--with-tests] [other params for build functions ...]"
+    echo "Usage: ${CMD_AS_DISPLAY} [--clean | --fresh] [--with-tests] [other params for build functions ...]"
     echo ""
     echo "   --clean      : Clean all outputs (build artifacts, generated sources, installed applications, etc)"
     echo "   --fresh      : Clean all outputs and then build (same as --clean followed by normal execution)"

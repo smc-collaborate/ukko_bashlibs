@@ -20,11 +20,10 @@ else
     SHARED_GIT_DIR_DISPLAY='~/gits-shared'
 fi
 
-APP_VERSION="v0.0.5d"
-
+APP_VERSION="v0.0.5e"
+APP_SELF_INSTALL='yes'
 function app_help()
 {
-    #echo -e "$EXE_NAME: $APP_DESCRIPTION"
     echo -e "$EXE_NAME: Checkout a git repository to the shared location ${COLOUR[VIVID_BLUE_STDOUT]:-}${SHARED_GIT_DIR_DISPLAY}${COLOUR[OFF_STDOUT]:-} and return the path to the checkout."
 
     echo -e "Usage: $EXE_NAME [--reload|--clear] [--quiet] <repo_path> [--ref=<ref>]"
@@ -83,40 +82,26 @@ function app_load_param_direct_value()
     elif [[ -z "$option_repo_url" ]]; then
         option_repo_url="$arg"
     else
-        do_exit_with_help "Multiple repository URLs provided.  Already have ${option_repo_url@Q} but adding '${arg@Q}' is an error."
+        do_errorExitWithSuggestion "Multiple repository URLs provided.  Already have ${option_repo_url@Q} but adding '${arg@Q}' is an error."
     fi
-}
-
-function app_load_param_option_name_only()
-{
-    local arg="${1}"
-
-    #
-    # Option arguments  (Typically of the form -n or --name)
-    #
-    if [[ "$arg" == '--list' ]] ; then      option_list_shared_checkouts=yes
-    elif [[ "$arg" == '--reload' ]]; then   option_is_reload='yes'
-    elif [[ "$arg" == '--clear' ]]; then    option_is_erase='yes'
-    elif [[ "$arg" == '--quiet' ]] ; then   option_is_quiet='yes'
-    else
-        return 1
-    fi
-
-    return 0
 }
 
 function app_load_param_option_name_value()
 {
     local name="${1}"
-    local value="${2}"
+    local value="${2:-}"
 
     #
-    # Option --name=value
+    # Option arguments  (Typically of the form '-n', '--name' or '--name=value')
     #
-    if [[ "$name" == '--quiet' ]] ; then
+    if [[   "$name" == '--list'   ]] ; then   option_list_shared_checkouts=yes
+    elif [[ "$name" == '--reload' ]] ; then   option_is_reload='yes'
+    elif [[ "$name" == '--clear'  ]] ; then   option_is_erase='yes'
+    elif [[ "$name" == '--quiet'  ]] ; then   option_is_quiet='yes'
+    elif [[ "$name" == '--quiet=' ]] ; then
         app_load_param_validate_from_list "$name" "$value" "yes,no,no-unless-info"
         option_is_quiet="$value"
-    elif [[ "$name" == '--ref' ]]; then
+    elif [[ "$name" == '--ref=' ]]; then
         ref_arg="${value}"
         if [[ "$ref_arg" == '#'* ]]; then
             option_ref_type='hash'
@@ -130,7 +115,7 @@ function app_load_param_option_name_value()
                     break
                 fi
             done
-            [[ -z "$option_ref_type" ]] && do_exit_with_help "Invalid format for $name=$value : Expected --ref=branch:<branch_name> or --ref=tag:<tag_name> or --ref=hash:<hash_value> or --ref=hash-only:<hash_value>"
+            [[ -z "$option_ref_type" ]] && do_errorExitWithSuggestion "Invalid format for $name=$value : Expected --ref=branch:<branch_name> or --ref=tag:<tag_name> or --ref=hash:<hash_value> or --ref=hash-only:<hash_value>"
         fi
     else
         return 1
@@ -162,7 +147,7 @@ function app_run()
         [[ -n "$option_repo_url" ]] || return 0
     fi
 
-    [[ -n "$option_repo_url" ]] || do_exit_with_help "Repository URL not provided."
+    [[ -n "$option_repo_url" ]] || do_errorExitWithSuggestion "Repository URL not provided."
 
 
 
@@ -456,9 +441,163 @@ function load_gitInfo()
     fi
 }
 
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #
-# Standard from here on - not specific to git-shared-checkout
+# Imported from lib-common.inc.bash
 #
+THIS_EXE="$(readlink -m "${BASH_SOURCE[0]}")"
+
+function displayPath()
+{
+    local fname_in="$1"
+
+    shift 1 || true
+
+    local trailingFile
+    local pathToReview
+
+    if [[ "${1:-}" == "--link-src" ]] ; then
+        shift 1 || true
+        local dir="${fname_in%/*}"
+
+        pathToReview="${dir:-"${PWD}"}"
+        trailingFile="${fname_in##*/}"
+    else
+        pathToReview="$fname_in"
+        trailingFile=''
+    fi
+
+    local max_back=3
+    if [[ "${1:-}" == "--max-back="* ]] ; then
+        max_back="${1#--max-back=}"
+        shift 1 || true
+    fi
+    skip_relative_if_contains="$(printf -v spaces "%*s" "$max_back" "" && echo "${spaces// /../}")"
+    skip_relative_if_contains="${skip_relative_if_contains%/}"
+
+    local orig
+    local relPath
+    local result
+
+    orig="$(realpath "${pathToReview}")"
+    result="${orig/#$HOME/\~}"
+    relPath="$(realpath --relative-to="${PWD%/}/" "${orig}")"
+    [[ "${1:-}" == "--run-path" ]] && [[ "$relPath" != *"/"* ]] && relPath="./${relPath}"
+    [[ "$relPath" != *"${skip_relative_if_contains}"* ]] && [[ "${#result}" -gt  "${#relPath}" ]] && result="$relPath"
+        skip_relative_if_contains="${skip_relative_if_contains%/}"
+
+    if [[ "${1:-}" == "--run-path" ]] ; then
+        # Is this exe available in PATH ?
+        local exe_dir="${orig%/*}"
+        local exe_name="${fname_in##*/}"
+        IFS=: read -r -d '' -a path_array < <(printf '%s:\0' "$PATH")
+        # Loop through the array elements
+        for pathDir in "${path_array[@]}"; do
+            [[ -n "$pathDir" ]] || pathDir="$PWD"
+            if [[ "$pathDir" == "$exe_dir" ]] ; then
+                quoteIfNeeded "$exe_name"
+                return 0  #< This can't be beaten for shortness - No path!
+            fi
+        done
+    fi
+    local fname_out
+    if [[ -z "$result" ]] ; then
+        fname_out="$orig"
+    elif [[ -z "$trailingFile" ]] ; then
+        fname_out="$result"
+    else
+        fname_out="${result%/}/$trailingFile"
+    fi
+
+    if [[ "${1:-}" == "--run-path" ]] ; then
+        fname_out="$(quoteIfNeeded "$fname_out")"
+    fi
+
+    echo -n "$fname_out"
+}
+
+##################################################
+#
+# Colours
+#
+declare -A COLOUR=()
+declare -A COLOUR_CODES=(
+        [RED]='\033[0;31m'
+        [GREEN]='\033[0;32m'
+        [YELLOW]='\033[0;33m'
+        [BLUE]='\033[0;34m'
+
+        [VIVID_RED]='\033[1;31m'
+        [VIVID_GREEN]='\033[1;32m'
+        [VIVID_YELLOW]='\033[1;33m'
+        [VIVID_BLUE]="\033[1;34m"
+
+        [OFF]='\033[0m'
+)
+
+UKKO_COLOURS_CHOSEN=''
+
+function colours_setUsed()
+{
+    local kind="${1:-stdout}"  # stdout,stderr
+    UKKO_COLOURS_USED_SUFFIX="_${kind^^}"
+    for colourName in "${!COLOUR_CODES[@]}"; do
+        contents="${COLOUR[${colourName}${UKKO_COLOURS_USED_SUFFIX}]:-}"
+        if [[ -z "$contents" ]] ; then
+            unset "COLOUR[${colourName}_USED]"
+        else
+            COLOUR["${colourName}_USED"]="$contents"
+        fi
+    done
+}
+function colours_load()
+{
+    local arg="${1:-auto}"  # yes|no|auto
+
+    UKKO_COLOURS_CHOSEN="--colours=$arg"
+
+    [[ -t 1 ]] || UKKO_COLOURS_CHOSEN+=", stdout redirected"
+    [[ -t 2 ]] || UKKO_COLOURS_CHOSEN+=", stderr redirected"
+
+    # |x| echo "colours_load($arg): $UKKO_COLOURS_CHOSEN" >&2
+    local kind
+    local colourName
+    local colourCode
+
+    COLOUR=()
+
+    for kind in "_STDOUT" "_STDERR" "_FORCED"; do
+
+        _colour=yes
+        if [[ "$arg" == 'no' ]] ; then
+            [[ "$kind" == "_FORCED" ]] || _colour=no
+        elif [[ "$arg" == 'auto' ]] ; then
+            [[ "$kind" == "_STDOUT" ]] && [[ ! -t 1 ]] && _colour=no
+            [[ "$kind" == "_STDERR" ]] && [[ ! -t 2 ]] && _colour=no
+        fi
+
+        if [[ "$_colour" == 'yes' ]]; then
+
+            for colourName in "${!COLOUR_CODES[@]}"; do
+                local colourCode="${COLOUR_CODES[$colourName]}"
+
+                local codeName="${colourName}"
+                [[ -n "$kind" ]] && codeName+="$kind"
+
+                COLOUR["${codeName}"]="$colourCode"
+            done
+        fi
+    done
+
+    colours_setUsed "stdout"
+}
+
+colours_load "auto"
+
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #
@@ -480,8 +619,20 @@ function load_gitInfo()
 # │
 # │ function app_help()
 # │ {
-# │     echo -e "Usage: $CMD_AS_DISPLAY [--person=<name>]"
+# │     echo -e "Usage: ${COLOUR[VIVID_BLUE_USED]:-}$CMD_AS_DISPLAY [--person=<name>]${COLOUR[OFF_USED]:-}"
 # │     echo -e "       --person=<name>    Specify the name to greet (default: 'fred')"
+# │ }
+# │
+# │ function app_load_param_defaults()
+# │ {
+# │     option_person='fred'
+# │ }
+# │
+# │ function app_load_param_option_name_value()
+# │ {
+# │     [[ "$1" == '--person' ]] && option_person="$2" && return 0
+# │
+# │     return 1
 # │ }
 # │ function app_run()
 # │ {
@@ -490,39 +641,15 @@ function load_gitInfo()
 # │     echo "This is some more output"
 # │     echo -e "Hidden coding help is available with: ${COLOUR[VIVID_BLUE_STDOUT]:-}$CMD_AS_DISPLAY --code-help${COLOUR[OFF_STDOUT]:-}"
 # │ }
-# │ function app_load_param()
-# │ {
-# │     local load_type="$1"
-# │     local value="${2:-}"
-# │     case "$load_type" in
-# │         'all-defaults')
-# │             # set any default values for parameters here
-# │             option_person='fred'
-# │             ;;
-# │         'option-arg')
-# │             # process any options here (e.g. --my-option=value)
-# │             if [[ "$value" == '--person='* ]]; then
-# │                 option_person="${value#--person=}"
-# │             else
-# │                 return 1
-# │             fi
-# │             ;;
-# │         'direct-arg')
-# │             # process any direct arguments here (e.g. myscript.sh arg1 arg2)
-# │             return 1
-# │             ;;
-# │         *)
-# │             return 1
-# │             ;;
-# │     esac
-# │ }
+# │ # shellcheck disable=SC1091
+# │ source "$(git-shared-checkout git@github.com:smc-collaborate/ukko_bashlibs --ref="${UKKO_BASHLIBS_REF:-}")/lib-common.inc.bash"
 # ╰─────────────────────────────────────────────────────────────────────────────────────
 #
 # It makes available:
 #
 #    $EXE_NAME
 #    $THIS_EXE
-#    do_exit_with_help  "<optional error message>"
+#    do_errorExitWithSuggestion  "<optional error message>"
 #    do_with_check <command...>  - Run a command and exit with an error message if it fails
 #    giveWarning "<warning message>" - Give a warning message that will be shown at the end of processing (if any)
 #
@@ -532,6 +659,7 @@ function padRight()
     local width="$1"
     local text="$2"
 
+    [[ "$width" -lt 0 ]] && width=0
     printf "%-${width}s" "$text"
 }
 
@@ -546,7 +674,6 @@ function giveCodeHelp()
     echo "  * app_help()                                    | Optional but recommended"
     echo "  * app_load_param_defaults()                     | Optional but recommended"
     echo "  * app_load_param_option_name_value(name,value)  | Optional but recommended"
-    echo "  * app_load_param_option_name_only(name)         | Optional"
     echo "  * app_load_param_direct_value(value)            | Optional"
     echo "  * app_run()                                     | Required"
     echo ""
@@ -560,42 +687,66 @@ function giveCodeHelp()
     echo "    \$THIS_EXE_AS_DISPLAY │ The display path of the executable              │ ${THIS_EXE_AS_DISPLAY:-❓  Not defined}"
     echo "    \$CMD_AS_DISPLAY      │ The executable in a form that can be run        │ ${CMD_AS_DISPLAY:-❓  Not defined}"
     echo ""
-    echo "    do_exit_with_help  '<optional error message>'"
+    echo "    do_exitWithHelp  '<optional error message>'"
+    echo "    do_errorExitWithSuggestion  '<error message>'"
     echo "    do_with_check <command...>  - Run a command and exit with an error message if it fails"
     echo "    giveWarning '<warning message>' - Give a warning message that will be shown at the end of processing (if any)"
     echo "   "
 
-    coloursShow
+    colours_show
 }
 
-function do_exit_with_help()
+# shellcheck disable=SC2317
+function do_errorExitWithSuggestion()
+{
+    local fatal_error_message="${1:-}"
+    {
+        echo -e "${COLOUR[VIVID_RED_STDERR]:-}❌  $fatal_error_message${COLOUR[OFF_STDERR]:-}"
+        echo -e "Suggest: ${COLOUR[VIVID_BLUE_STDOUT]:-}$CMD_AS_DISPLAY --help${COLOUR[OFF_STDOUT]:-}"
+    } >&2
+    exit 1
+}
+
+function do_errorExitWithSuggestion()
+{
+    local fatal_error_message="${1:-}"
+    {
+        echo -e "${COLOUR[VIVID_RED_STDERR]:-}❌  $fatal_error_message${COLOUR[OFF_STDERR]:-}"
+        echo -e "Suggest: ${COLOUR[VIVID_BLUE_STDOUT]:-}$CMD_AS_DISPLAY --help${COLOUR[OFF_STDOUT]:-}"
+    } >&2
+    exit 1
+}
+
+function do_exitWithHelp()
 {
     local fatal_error_message="${1:-}"
 
     [[ -n "$fatal_error_message" ]] && echo -e "${COLOUR[VIVID_RED_STDERR]:-}❌  $fatal_error_message${COLOUR[OFF_STDERR]:-}" >&2
     {
-        COLOUR[VIVID_BLUE_HELP]="${COLOUR[VIVID_BLUE_STDERR]:-}"
-        COLOUR[VIVID_RED_HELP]="${COLOUR[VIVID_RED_STDERR]:-}"
-        COLOUR[OFF_HELP]="${COLOUR[OFF_STDERR]:-}"
+
+        colours_setUsed 'STDERR'
+
         [[ -n "${APP_DESCRIPTION:-}" ]] && echo -e "$CMD_AS_DISPLAY: $APP_DESCRIPTION"
         if declare -F app_help >/dev/null 2>&1 ; then
             app_help
             echo ""
             echo -e "Additional functions:"
         else
-            echo -e "Usage: ${COLOUR[VIVID_BLUE_STDOUT]:-}$CMD_AS_DISPLAY <parameters>${COLOUR[OFF_STDOUT]:-}"
+            echo -e "Usage: ${COLOUR[VIVID_BLUE_USED]:-}$CMD_AS_DISPLAY <parameters>${COLOUR[OFF_USED]:-}"
             echo -e ""
             echo -e "Parameters:"
         fi
         echo -e "     --help     : Give this help message"
-        [[ -n "${APP_VERSION:-}" ]] && echo -e "     --version  : Give version : ${COLOUR[VIVID_BLUE_STDOUT]:-}$APP_VERSION${COLOUR[OFF_STDOUT]:-}"
+        [[ -n "${APP_VERSION:-}" ]] && echo -e "     --version  : Give version : ${COLOUR[VIVID_BLUE_USED]:-}$APP_VERSION${COLOUR[OFF_USED]:-}"
 
         _installDirShow="$(displayPath "$INSTALL_DIR")"
-        [[ ":$PATH:" == *":${INSTALL_DIR}:"* ]] || _installDirShow+="${COLOUR[VIVID_RED_STDOUT]:-}  ⚠️  This should be added to \$PATH${COLOUR[OFF_STDOUT]:-}"
-        if [[ "$INSTALLATION_NOTE" == "OK" ]] ; then
-            echo -e "     --uninstall: Uninstalls from $_installDirShow"
-        else
-            echo -e "     --install  : Installs to $_installDirShow "
+        [[ ":$PATH:" == *":${INSTALL_DIR}:"* ]] || _installDirShow+="${COLOUR[VIVID_RED_USED]:-}  ⚠️  This should be added to \$PATH${COLOUR[OFF_USED]:-}"
+        if [[ "${APP_SELF_INSTALL:-}" == "yes" ]] ; then
+            if [[ "$INSTALLATION_NOTE" == "OK" ]] ; then
+                echo -e "     --uninstall: Uninstalls from $_installDirShow"
+            else
+                echo -e "     --install  : Installs to $_installDirShow "
+            fi
         fi
         echo -e "     --colours=no|yes|auto  (Default 'auto')"
     } >&2
@@ -612,10 +763,14 @@ function app_load_param_validate_from_list()
 {
     local name="$1"
     local value="$2"
-    local validation="$3"
-    echo "Validating value for $name=$value against expected values: $validation"
 
-    [[ ",$validation," != *",${value},"* ]] || do_exit_with_help "Invalid value for $name=$value Expected one of [$validation]"
+    shift 2 || true
+    #echo "ℹ️  Validating value for $name$value against expected values: [$(asCsvList "$@")]"
+
+    for arg in "$@"; do
+        [[ "$arg" == "$value" ]] && return 0
+    done
+    do_errorExitWithSuggestion "Invalid value for ${name}<value>.  <value> is ${value@Q}, but expected one of [$(asCsvList "$@")]"
 }
 
 function load_params()
@@ -627,13 +782,9 @@ function load_params()
     }
     function _app_get_param_option_name_value()
     {
-        declare -F app_load_param_option_name_value  &> /dev/null  && app_load_param_option_name_value "$1" "$2"
+        declare -F app_load_param_option_name_value  &> /dev/null  && app_load_param_option_name_value "$1" "${2:-}"
     }
 
-    function _app_get_param_option_name_only()
-    {
-        declare -F app_load_param_option_name_only  &> /dev/null  && app_load_param_option_name_only "$1"
-    }
 
     function _app_get_param_direct_value()
     {
@@ -643,6 +794,7 @@ function load_params()
 
     _app_get_param_defaults
     local giveCodeHelp='no'
+    local giveStdHelp='no'
     for arg in "$@"; do
         [[ -z "$arg" ]] && continue
         if [[ "$am_processing_options" == "yes" ]] && [[ "$arg" == '-'* ]]; then
@@ -652,30 +804,34 @@ function load_params()
                 echo "$(basename "$THIS_EXE") $APP_VERSION"
                 exit 0
             elif [[ "$arg" == '--help' ]]; then
-                do_exit_with_help
+                giveStdHelp='yes'
             elif [[ "$arg" == '--colours=no' ]] || [[ "$arg" == '--colours=yes' ]] || [[ "$arg" == '--colours=auto' ]]; then
                 colours_load "${arg#--colours=}"
-            elif [[ "$INSTALLATION_NOTE" == "OK" ]] && [[ "$arg" == "--uninstall" ]] ; then
-                (sleep 0.5 && rm -f "$THIS_EXE" && echo "Removed $THIS_EXE") &
-                exit 0
-            elif [[ "$INSTALLATION_NOTE" != "OK" ]] && [[ "$arg" == "--install" ]] ; then
-                do_install_directly
-                exit 0
+            elif [[ "${APP_SELF_INSTALL:-}" == "yes" ]] ; then
+                if [[ "$INSTALLATION_NOTE" == "OK" ]] && [[ "$arg" == "--uninstall" ]] ; then
+                    (sleep 0.5 && rm -f "$THIS_EXE" && echo "Removed $THIS_EXE") &
+                    exit 0
+                elif [[ "$arg" == "--install" ]] ; then # Always permit 'install' even if the app is already installed, as this can be used to fix an installation that is not working (e.g. due to missing copy or missing PATH entry)
+                    do_install_directly
+                    exit 0
+                fi
             elif [[ "$arg" == '--code-help' ]] ; then
                 giveCodeHelp='yes'
             elif [[ "$arg" == "--"*"="* ]] ; then
-                _app_get_param_option_name_value "${arg%%=*}" "${arg#*=}" || do_exit_with_help "Unknown named option ${arg@Q}"
+                _app_get_param_option_name_value "${arg%%=*}=" "${arg#*=}" || do_errorExitWithSuggestion "Unknown named option ${arg@Q}"
             else
-                _app_get_param_option_name_only  "${arg}"                 || do_exit_with_help "Unknown option ${arg@Q}"
+                _app_get_param_option_name_value "${arg}"                  || do_errorExitWithSuggestion "Unknown option ${arg@Q}"
             fi
         else
-            _app_get_param_direct_value "$arg" || do_exit_with_help "Unknown direct argument ${arg@Q}"
+            _app_get_param_direct_value "$arg" || do_errorExitWithSuggestion "Unknown direct argument ${arg@Q}"
         fi
     done
 
     if [[ "$giveCodeHelp" == "yes" ]]; then
         giveCodeHelp
         exit 0
+    elif [[ "$giveStdHelp" == "yes" ]]; then
+        do_exitWithHelp ''
     fi
 
 }
@@ -738,7 +894,6 @@ function giveWarning()
 }
 
 
-THIS_EXE="$(readlink -m "${BASH_SOURCE[0]}")"
 EXE_NAME="$(basename "$THIS_EXE")"
 app_name_and_version="${EXE_NAME}"
 [[ "${APP_VERSION:-}" ]] && app_name_and_version+=" ($APP_VERSION)"
@@ -754,143 +909,8 @@ else
     INSTALLATION_NOTE+='OK'
 fi
 
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#
-# Imported from lib-common.inc.bash
-#
 
-function displayPath()
-{
-    local fname_in="$1"
-
-    shift 1 || true
-
-    local trailingFile
-    local pathToReview
-
-    if [[ "${1:-}" == "--link-src" ]] ; then
-        shift 1 || true
-        local dir="${fname_in%/*}"
-
-        pathToReview="${dir:-"${PWD}"}"
-        trailingFile="${fname_in##*/}"
-    else
-        pathToReview="$fname_in"
-        trailingFile=''
-    fi
-
-    local max_back=4
-    if [[ "${1:-}" == "--max-back="* ]] ; then
-        max_back="${1#--max-back=}"
-        shift 1 || true
-    fi
-    skip_relative_if_contains="$(printf -v spaces "%*s" "$max_back" "" && echo "${spaces// /../}")"
-    skip_relative_if_contains="${skip_relative_if_contains%/}"
-
-    local orig
-    local relPath
-    local result
-
-    orig="$(realpath "${pathToReview}")"
-    result="${orig/#$HOME/\~}"
-    relPath="$(realpath --relative-to="${PWD%/}/" "${orig}")"
-    [[ "${1:-}" == "--run-path" ]] && [[ "$relPath" != *"/"* ]] && relPath="./${relPath}"
-    [[ "$relPath" != *"${skip_relative_if_contains}"* ]] && [[ "${#result}" -gt  "${#relPath}" ]] && result="$relPath"
-        skip_relative_if_contains="${skip_relative_if_contains%/}"
-
-    if [[ "${1:-}" == "--run-path" ]] ; then
-        # Is this exe available in PATH ?
-        local exe_dir="${orig%/*}"
-        local exe_name="${fname_in##*/}"
-        IFS=: read -r -d '' -a path_array < <(printf '%s:\0' "$PATH")
-        # Loop through the array elements
-        for pathDir in "${path_array[@]}"; do
-            [[ -n "$pathDir" ]] || pathDir="$PWD"
-            if [[ "$pathDir" == "$exe_dir" ]] ; then
-                quoteIfNeeded "$exe_name"
-                return 0  #< This can't be beaten for shortness - No path!
-            fi
-        done
-    fi
-    local fname_out
-    if [[ -z "$result" ]] ; then
-        fname_out="$orig"
-    elif [[ -z "$trailingFile" ]] ; then
-        fname_out="$result"
-    else
-        fname_out="${result%/}/$trailingFile"
-    fi
-
-    if [[ "${1:-}" == "--run-path" ]] ; then
-        fname_out="$(quoteIfNeeded "$fname_out")"
-    fi
-
-    echo -n "$fname_out"
-}
-
-
-declare -A COLOUR=()
-declare -A COLOUR_CODES=(
-        [RED]='\033[0;31m'
-        [GREEN]='\033[0;32m'
-        [YELLOW]='\033[0;33m'
-        [BLUE]='\033[0;34m'
-
-        [VIVID_RED]='\033[1;31m'
-        [VIVID_GREEN]='\033[1;32m'
-        [VIVID_YELLOW]='\033[1;33m'
-        [VIVID_BLUE]="\033[1;34m"
-
-        [OFF]='\033[0m'
-)
-
-UKKO_COLOURS_CHOSEN=''
-function colours_load()
-{
-    local arg="${1:-auto}"  # yes|no|auto
-
-    UKKO_COLOURS_CHOSEN="--colours=$arg"
-
-    [[ -t 1 ]] || UKKO_COLOURS_CHOSEN+=", stdout redirected"
-    [[ -t 2 ]] || UKKO_COLOURS_CHOSEN+=", stderr redirected"
-
-    # |x| echo "colours_load($arg): $UKKO_COLOURS_CHOSEN" >&2
-    local kind
-    local colourName
-    local colourCode
-
-    COLOUR=()
-
-    for kind in "_STDOUT" "_STDERR" "_FORCED"; do
-
-        _colour=yes
-        if [[ "$arg" == 'no' ]] ; then
-            [[ "$kind" == "_FORCED" ]] || _colour=no
-        elif [[ "$arg" == 'auto' ]] ; then
-            [[ "$kind" == "_STDOUT" ]] && [[ ! -t 1 ]] && _colour=no
-            [[ "$kind" == "_STDERR" ]] && [[ ! -t 2 ]] && _colour=no
-        fi
-
-        if [[ "$_colour" == 'yes' ]]; then
-
-            for colourName in "${!COLOUR_CODES[@]}"; do
-                local colourCode="${COLOUR_CODES[$colourName]}"
-
-                local codeName="${colourName}"
-                [[ -n "$kind" ]] && codeName+="$kind"
-
-                COLOUR["${codeName}"]="$colourCode"
-            done
-        fi
-    done
-}
-
-colours_load "auto"
-#
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-function coloursShow()
+function colours_show()
 {
 
         echo '╭─────────────────────────────────────────────────────────'

@@ -48,8 +48,15 @@ function displayPath()
 
     if [[ "${1:-}" == "--run-path" ]] ; then
         # Is this exe available in PATH ?
-        local exe_dir="${orig%/*}"
-        local exe_name="${fname_in##*/}"
+
+        if [[ -n "$trailingFile" ]] ; then
+            local exe_dir="${orig%/}"
+            local exe_name="$trailingFile"
+        else
+            local exe_dir="${orig%/*}"
+            local exe_name="${fname_in##*/}"
+        fi
+
         IFS=: read -r -d '' -a path_array < <(printf '%s:\0' "$PATH")
         # Loop through the array elements
         for pathDir in "${path_array[@]}"; do
@@ -141,6 +148,16 @@ function quoteIfNeeded()
     _quoteIfNeeded "yes" "$@"
 }
 
+function asCsvList()
+{
+    local _first='yes'
+    for arg in "$@" ; do
+        [[ "$_first" == 'yes' ]] || echo -n ", "
+        _first='no'
+        quoteIfNeeded "$arg"
+    done
+}
+
 function asQuotableText()
 {
     _quoteIfNeeded "no" "$@"
@@ -163,7 +180,10 @@ function print_verbose()
     echo -e "ℹ️  $*" >&2
 }
 
-
+##################################################
+#
+# Colours
+#
 declare -A COLOUR=()
 declare -A COLOUR_CODES=(
         [RED]='\033[0;31m'
@@ -180,6 +200,20 @@ declare -A COLOUR_CODES=(
 )
 
 UKKO_COLOURS_CHOSEN=''
+
+function colours_setUsed()
+{
+    local kind="${1:-stdout}"  # stdout,stderr
+    UKKO_COLOURS_USED_SUFFIX="_${kind^^}"
+    for colourName in "${!COLOUR_CODES[@]}"; do
+        contents="${COLOUR[${colourName}${UKKO_COLOURS_USED_SUFFIX}]:-}"
+        if [[ -z "$contents" ]] ; then
+            unset "COLOUR[${colourName}_USED]"
+        else
+            COLOUR["${colourName}_USED"]="$contents"
+        fi
+    done
+}
 function colours_load()
 {
     local arg="${1:-auto}"  # yes|no|auto
@@ -218,9 +252,14 @@ function colours_load()
             done
         fi
     done
+
+    colours_setUsed "stdout"
 }
 
 colours_load "auto"
+
+#
+##################################################################################
 
 if [[ -z "${ORIG_PWD:-}" ]] ; then
   #|Logging| echo "🛈  Setting ORIG_PWD to [$(pwd)]"
@@ -278,8 +317,7 @@ UKKO_BASHLIBS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 THIS_EXE_AS_DISPLAY="$(displayPath "$THIS_EXE")"
 THIS_DIR_AS_DISPLAY="$(displayPath "$THIS_DIR")"
 
-CMD_AS_DISPLAY="$(displayPath "$THIS_EXE" --run-path)"
-
+CMD_AS_DISPLAY="$(displayPath "$0" --link-src --run-path)"
 [[ -z "${ORIG_EXE_RUN:-}" ]] && export ORIG_EXE_RUN="${THIS_EXE}"
 [[ -z "${ORIG_EXE_DIR:-}" ]] && export ORIG_EXE_DIR="${THIS_DIR}"
 [[ -z "${ORIG_EXE_RUN_AS_DISPLAY:-}" ]] && export ORIG_EXE_RUN_AS_DISPLAY="${THIS_EXE_AS_DISPLAY}"

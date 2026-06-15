@@ -5,7 +5,8 @@ SUGGEST_HOW_TO_INSTALL_TO_ROOT=no
 
 function apps_doInstallOrClean()
 {
-    do_exeInstall_orClean "${THIS_DIR%/}/git-shared-checkout"
+    do_exeInstall_orClean git-shared-checkout
+    do_exeInstall_orClean do-run-in-docker
 }
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib-build-funcs.inc.bash"

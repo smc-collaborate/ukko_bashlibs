@@ -5,7 +5,7 @@
 
 function app_help()
 {
-    echo -e "Usage: ${COLOUR[VIVID_BLUE_HELP]:-}$CMD_AS_DISPLAY [--person=<name>]${COLOUR[OFF_HELP]:-}"
+    echo -e "Usage: ${COLOUR[VIVID_BLUE_USED]:-}$CMD_AS_DISPLAY [--person=<name>]${COLOUR[OFF_USED]:-}"
     echo -e "       --person=<name>    Specify the name to greet (default: 'fred')"
 }
 

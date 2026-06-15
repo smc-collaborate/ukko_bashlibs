@@ -282,7 +282,7 @@ else
     echo_prefix_end="│   "
 fi
 
-echo -e "Running ${COLOUR[YELLOW_STDOUT]:-}${THIS_EXE_AS_DISPLAY}${COLOUR[OFF_STDOUT]:-}"
+echo -e "Running ${COLOUR[YELLOW_STDOUT]:-}${CMD_AS_DISPLAY}${COLOUR[OFF_STDOUT]:-}"
 
 main_result_code=0
 
