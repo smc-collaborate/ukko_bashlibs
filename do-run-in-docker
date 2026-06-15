@@ -79,7 +79,7 @@ function app_run()
     ######
     #
     tmpdir_for_startup_script="$(mktemp -d '/tmp/runWithinImage_XXXX')"
-    cp -a "${THIS_DIR%/}/_run-within-image.sh" "${tmpdir_for_startup_script}/_startup.sh"
+    cp -a "${THIS_DIR%/}/_internalUse/do-run-in-docker_startup.sh" "${tmpdir_for_startup_script}/_startup.sh"
 
     if [[ "${option_apt_get}" == "yes" ]] ; then
        {
