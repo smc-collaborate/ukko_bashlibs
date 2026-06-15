@@ -369,7 +369,6 @@ function do_setupPython3()
 
         local _devReason=''
         source /etc/os-release
-        cat /etc/os-release
         if [[ "${PRETTY_NAME:-}" == *"development"* ]] ; then
             _devReason="$PRETTY_NAME"
         elif [[ "${1:-}" == '--dev' ]] ; then

@@ -31,7 +31,11 @@ function dumpVersions()
 {
     echo "Environment:"
     {
-        echo "$PRETTY_NAME"
+        echo -n "${NAME:-} ${VERSION:-}"
+        if [[ "${PRETTY_NAME:-}" != "${NAME:-} ${VERSION_ID:-}"* ]] ; then
+            echo -n " -- ${PRETTY_NAME:-}"
+        fi
+        echo ""
 
         python3 --version 2>/dev/null
         pip3 --version    2>/dev/null
@@ -52,7 +56,7 @@ while [[ "$#" -gt 0 ]] ; do
     echo "⚠️  Unknown argument: $_arg" >&2
 done
 
-echo "Running within docker image [${PRETTY_NAME:-}] ($option_exit) cmd: ${option_cmd_to_run[*]}" >&2
+echo "Running within docker image [${NAME:-} ${VERSION:-}] ($option_exit) cmd: ${option_cmd_to_run[*]}" >&2
 
 if [[ -d "${THIS_DIR%/}/ssh_keys" ]] ; then
     #echo "Installing keys"

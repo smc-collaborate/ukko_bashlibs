@@ -31,7 +31,7 @@ function app_help()
     echo ""
     echo "          --dry-run          : Does a dry-run without actually executing the command (useful for experiments)"
     echo ""
-    echo -e "Example  : ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:22.04 --exit=no  -- echo 'Hello, World!'${COLOUR[OFF_USED]:-}"
+    echo -e "Example  : ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:22.04 --exit=no  cat /etc/os-release${COLOUR[OFF_USED]:-}"
 
     readarray -t _builders < <(find "$ORIG_PWD" -mindepth 1 -maxdepth 1 -type f -executable -name '*do-build*')
 
