@@ -1,4 +1,4 @@
-# `ukko_bashlibs` -- An old man's collection of bash utilities
+# `ukko_bashlibs` -- An old man's collection of bash utilities  (`Release 0.0.3`)
 
 ## Style ##
 

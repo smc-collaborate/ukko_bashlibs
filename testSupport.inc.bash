@@ -1,5 +1,6 @@
 # shellcheck disable=all
 # source this file - not a script to run directly
+echo "⚠️  ℹ️  ❓  Deprecated - REFACTOR TO USE 'lib-test-funcs.inc.bash' instead" >&2
 
 libSupport_testName=""
 libSupport_testCmd=""
@@ -9,24 +10,6 @@ libSupport_testDir=$(mktemp -d -t tmp_testComparisons_XXXXXX) || {
     echo "❌ Failed to create temporary directory for tests"
     exit 1
 }
-# Colors for output
-if [[ -t 1 ]] ; then
-    # Enable colors only if output is a terminal
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    BLUE='\033[0;34m'
-    BOLD_BLUE="\033[1;34m"
-    NC='\033[0m' # No Color
-else
-    # Disable colors if output is not a terminal (e.g., when redirected to a file)
-    RED=''
-    GREEN=''
-    YELLOW=''
-    BLUE=''
-    BOLD_BLUE=''
-    NC=''
-fi
 
 function makeNamedNonUniqueTempFile()
 {
@@ -128,7 +111,7 @@ function markFail_expected()
 
 
     printTestFailed "Actual❌: ${actual##stdOut: }"
-    printTestFollowupLine "Expected: ${expected##      }"
+    printTestFollowupLine "Expected: $(displayPath "${expected##      }")"
 
     return 1
 }
@@ -202,7 +185,7 @@ function verifyFile_matches() {
         # |Logging|     cat "$gen__fname_old"
         # |Logging|     echo "<<< $gen__fname_old"
         # |Logging|     echo "----^"
-        # |Logging| } | sed 's/^/❓  /' >&2
+        # |Logging| } | withPrefix "❓  " >&2
 
         jq_normaliseWithChecks "Generated output" < "$gen__fname_old" > "$gen__fname"
         gen__prefix+=".json"
@@ -247,7 +230,7 @@ function verifyFile_matches() {
             echo "---- Actual → Expected (Gold standard)     -----"
             diff -u "$gen__fname" "$gold_fname" | tail -n +3 || true
             echo "--------------"
-        } | sed -e "s/^/${PRINT_LEFT_PREFIX} │ /"
+        } | withPrefix "${PRINT_LEFT_PREFIX} │ "
         elif [[ "$filter" == "annotatedData" ]] ; then
         {
             echo "---- Actual → Expected (Gold standard)     -----"
@@ -261,7 +244,7 @@ function verifyFile_matches() {
 
             diff  "$summary_fname_gen_" "$summary_fname_gold" || true
             echo "--------------"
-        } | sed -e "s/^/${PRINT_LEFT_PREFIX} │ /"
+        } | withPrefix "${PRINT_LEFT_PREFIX} │ "
         fi
         return 0
     fi
@@ -574,9 +557,9 @@ function commandComplete_dumpCmdInfo()
 
     local pre_gap
     # |Logging| echo "!!!!!!!!!!!(5) [$libSupport_testCmd]:libSupport_testVerificationResult=$libSupport_testVerificationResult"
-    echo -e "${PRINT_LEFT_PREFIX} │ Command: ${BOLD_BLUE_STDOUT:-}${libSupport_testCmd% | cat}${NC_STDOUT:-}"
-    sed -e 's/\r.*\r//' -e "s|^⚠️|⚠ |g"  -e "s|^❌|✗ |g" -e "s|^ℹ️ |🛈 |g"  -e "s/^/${PRINT_LEFT_PREFIX} │  /" < "$stderr_file"
-    sed -e 's/\r.*\r//' -e "s/^/${PRINT_LEFT_PREFIX} │ ❓  /" < "$failure_notes_file"
+    echo -e "${PRINT_LEFT_PREFIX} │ Command: ${COLOUR[VIVID_BLUE_STDOUT]:-}${libSupport_testCmd% | cat}${COLOUR[OFF_STDOUT]:-}"
+    sed --unbuffered -e 's/\r.*\r//' -e "s|^⚠️|⚠ |g"  -e "s|^❌|✗ |g" -e "s|^ℹ️ |🛈 |g"  -e "s/^/${PRINT_LEFT_PREFIX} │  /" < "$stderr_file"
+    sed --unbuffered -e 's/\r.*\r//' -e "s/^/${PRINT_LEFT_PREFIX} │ ❓  /" < "$failure_notes_file"
 
 
     [[ -z "$expected_return_code" ]] && expected_return_code="${EXPECTED_CMD_RETURN_CODE:-0}"
@@ -612,7 +595,14 @@ function RunWithNoteFailure()
     "$@" && return 0
 
     didFail='yes'
-    return 1
+
+    if [[ "${TEST_SUPPORT_EXIT_ON_FAIL:-}" == "yes" ]] ; then
+        echo -e "Exiting due to ${COLOUR[VIVID_BLUE_STDOUT]:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${COLOUR[OFF_STDOUT]:-}"
+        exit 1
+    else
+        echo -e "   Use: ${COLOUR[VIVID_BLUE_STDOUT]:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${COLOUR[OFF_STDOUT]:-} to exit on first failure"
+        return 1
+    fi
 }
 
 
@@ -642,12 +632,12 @@ function doValidateAnnotatedFile()
     [[ -z "$raw_format" ]] && raw_format='raw'
 
     local fname_noext="${annotated_file%%.*}"
-    #                   +-------------------------+----------------------------+-----------------------------------+--------------------------------------------------------------------------------
-    #                   | Test Kind               | Input                ------| Expected Output                   | Command to Run
-    #                   +-------------------------+----------------------------+-----------------------------------+--------------------------------------------------------------------------------
-    RunWithNoteFailure   doTest_check_stdOut_file  "<${annotated_file}"          "<${fname_noext}.${raw_format}"     annotatedData export  -f bitstream
-    RunWithNoteFailure   doTest_check_stdOut_json  "<${annotated_file}"          "<${fname_noext}.summary.json"      annotatedData export  -f json:summary
-    RunWithNoteFailure   doTest_check_stdOut_file  "<${annotated_file}"          "<${fname_noext}.png"               annotatedData export  -f image
+    #                   +--------------------+----------------------------+-----------------------------------+--------------------------------------------------------------------------------
+    #                   | Test Kind          | Input                ------| Expected Output                   | Command to Run
+    #                   +--------------------+----------------------------+-----------------------------------+--------------------------------------------------------------------------------
+    RunWithNoteFailure   doTest_check_stdOut  "<${annotated_file}"          "<${fname_noext}.${raw_format}"     annotatedData export  -f bitstream
+    RunWithNoteFailure   doTest_check_stdOut  "<${annotated_file}"          "<${fname_noext}.summary.json"      annotatedData export  -f json:summary
+    RunWithNoteFailure   doTest_check_stdOut  "<${annotated_file}"          "<${fname_noext}.png"               annotatedData export  -f image
     return 0
 }
 

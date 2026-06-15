@@ -2,15 +2,15 @@
 THIS_EXE="$(readlink -f "${BASH_SOURCE[0]}")"
 THIS_DIR="$(realpath -m "$(dirname "$THIS_EXE")")"
 #|Logging| echo "🛈  THIS_EXE = [$THIS_EXE], ORIG_PWD = [${ORIG_PWD:-NONE}]"
-source "${THIS_DIR%/}/utils.inc.bash"
+source "${THIS_DIR%/}/lib-common.inc.bash"
 
 function give_help()
 {
     echo "Usage: $0 [options] <service_name> <executable_and_parameters>"
     echo "Valid options: "
-    echo "   * --remove"
-    echo "   * --user=<username>"
-    echo "   * --working-dir=<directory>"
+    echo "   • --remove"
+    echo "   • --user=<username>"
+    echo "   • --working-dir=<directory>"
 
 }
 
@@ -68,9 +68,7 @@ function install_and_start_service()
     echo "    • Installed: $fname_service"
 
     if [[ "$option_show_full" == "yes" ]] ; then
-        echo     "                 ┌───────────────────────────────────────────────────────────────────────"
-        sed  "s/^/                 │ /" < "$fname_service"
-        echo     "                 └───────────────────────────────────────────────────────────────────────"
+        withLeftBox "                 " < "$fname_service"
     else
         [[ -n "$option_user" ]] && echo "                 • user: $option_user"
     fi
@@ -82,17 +80,16 @@ function install_and_start_service()
     return_value=0; status=$(systemctl is-active "${serviceName}.service") || return_value="$?"
     if [[ "$return_value" == 0 ]] ; then
         echo "      ✓ Confirmed Running   [PID: $service_pid]"
-        echo                                          "        ┌───────────────────────────────────────────────────────────────────────"
-        journalctl _PID="${service_pid}"    | sed "s/^/        │ /"
-        echo                                          "        └───────────────────────────────────────────────────────────────────────"
-        echo                                          "         Use: "
-        echo                                       -e "              • ${BOLD_BLUE_STDOUT:-}journalctl _PID=${service_pid} -f${NC_STDOUT:-} to follow the logs  (Ensure you have used 'flushCache' in the printing functions to avoid buffering delays)"
-        echo                                       -e "              • ${BOLD_BLUE_STDOUT:-}systemctl status ${serviceName}.service${NC_STDOUT:-} to check the service status"
+        {
+            doRun-groupedOutput journalctl _PID="${service_pid}" --no-pager
+
+            echo     "Use: "
+            echo  -e "     • ${COLOUR[VIVID_BLUE_STDOUT]:-}journalctl _PID=${service_pid} -f${COLOUR[OFF_STDOUT]:-} to follow the logs  (Ensure you have used 'flushCache' in the printing functions to avoid buffering delays)"
+            echo  -e "     • ${COLOUR[VIVID_BLUE_STDOUT]:-}systemctl status ${serviceName}.service${COLOUR[OFF_STDOUT]:-} to check the service status"
+        } | withPrefix "         "
     else
         echo "      ❌  Not active  [$status:$return_value]"
-        echo                                             "      ┌───────────────────────────────────────────────────────────────────────"
-        systemctl status  "${serviceName}.service" | sed "s/^/      │ /"
-        echo                                             "      └───────────────────────────────────────────────────────────────────────"
+        doRun-groupedOutput systemctl status  "${serviceName}.service" --no-pager | withPrefix "         "
     fi
     return "$return_value"
 
@@ -111,9 +108,7 @@ function systemd_enable()
     else
         echo "      ❌  Not enabled  [$status:$returnValue]"
         overallBashResult=3
-        echo                                  "      ┌───────────────────────────────────────────────────────────────────────"
-        systemctl status  "${name}" | sed "s/^/      │ /"
-        echo                                  "      └───────────────────────────────────────────────────────────────────────"
+        run-in-outline systemctl status "${name}"
     fi
 
     return "$returnValue"
