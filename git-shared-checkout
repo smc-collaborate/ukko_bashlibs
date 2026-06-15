@@ -488,7 +488,7 @@ function displayPath()
     orig="$(realpath "${pathToReview}")"
     result="${orig/#$HOME/\~}"
     relPath="$(realpath --relative-to="${ORIG_PWD%/}/" "${orig}")"
-    [[ "${1:-}" == "--run-path" ]] && [[ "$relPath" != *"/"* ]] && relPath="./${relPath}"
+    [[ "${1:-}" == "--run-path" ]] && [[ "$relPath" != *"/"* ]] && [[ "$relPath" != "./"* ]] && [[ "$relPath" != "." ]] && relPath="./${relPath}"
     [[ "$relPath" != *"${skip_relative_if_contains}"* ]] && [[ "${#result}" -gt  "${#relPath}" ]] && result="$relPath"
         skip_relative_if_contains="${skip_relative_if_contains%/}"
 
