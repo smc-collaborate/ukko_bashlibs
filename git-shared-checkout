@@ -252,13 +252,13 @@ function app_run()
              do_with_check git clone --branch "$option_ref_value" --depth 1 "$option_repo_url" "$repo_fullDir"
         elif [[ "$option_ref_type" == 'hash' ]] ; then
              do_with_check git clone  "$option_repo_url" "$repo_fullDir"
-             do_with_check git -C "$repo_fullDir" checkout -q "$option_ref_value"
+             do_with_check git -C "$repo_fullDir" checkout -c advice.detachedHead=false  "$option_ref_value"
         elif [[ "$option_ref_type" == 'hash-only' ]] ; then
              url="https://${option_repo_url/:/}/archive/${option_ref_value}.zip"
              do_with_check wget -L -O "/tmp/${option_ref_value}.zip" "$url"
              do_with_check unzip "/tmp/${option_ref_value}.zip" -d "${repo_fullDir}"
         elif [[ "$option_ref_type" == 'tag' ]] ; then
-             do_with_check git clone -q --branch "$option_ref_value"  --depth 1 "$option_repo_url" "$repo_fullDir"
+             do_with_check git clone -c advice.detachedHead=false  --branch "$option_ref_value"  --depth 1 "$option_repo_url" "$repo_fullDir"
         else
             giveWarning "Invalid ref type '$option_ref_type' for ref '$option_ref_value'"
             exit 1
