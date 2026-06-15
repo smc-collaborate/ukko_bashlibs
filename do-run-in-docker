@@ -26,19 +26,25 @@ function app_help()
     echo "          --keys-dir=<dir>   : The directory containing SSH keys that the container may use"
     echo "                               (Default: ~/.ssh/)"
     echo "          --workspace=<dir>  : The directory to be mapped to '/workspace' inside the container"
-    echo "                               (Default: $(displayPath "$ORIG_EXE_DIR"))"
-    echo "          --apt-get=no       : Disable apt-get update and steps"
+    echo "                               (Default: $(displayPath "$ORIG_PWD"))"
+    echo "          --apt-get=yes      : Perform \`apt-get update\` and steps"
     echo ""
     echo "          --dry-run          : Does a dry-run without actually executing the command (useful for experiments)"
     echo ""
-    echo -e "Example    : ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:22.04 --exit=no --apt-get=no -- echo 'Hello, World!'${COLOUR[OFF_USED]:-}"
+    echo -e "Example  : ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:22.04 --exit=no  -- echo 'Hello, World!'${COLOUR[OFF_USED]:-}"
+
+    readarray -t _builders < <(find "$ORIG_PWD" -mindepth 1 -maxdepth 1 -type f -executable -name '*do-build*')
+
+    for cmd in "${_builders[@]}" ; do
+        echo -e "           ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:24.04 --apt-get=yes -- ./${cmd##*/} --with-tests${COLOUR[OFF_USED]:-}"
+    done
 }
 
 function app_load_param_defaults()
 {
     option_docker_image=''
     option_exit='on-success'
-    option_workspace="$ORIG_EXE_DIR"
+    option_workspace="$ORIG_PWD"
     option_keys_dir='' ;   [[ -n "${HOME:-}" ]] && option_keys_dir="${HOME%/}/.ssh/"
     option_dry_run=''
     option_apt_get='no'
