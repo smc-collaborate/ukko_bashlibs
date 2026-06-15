@@ -274,15 +274,16 @@ function do_with_check()
 
 function do_install_directly()
 {
-    local INSTALL_DIR="${HOME%/}/.local/bin" ; [[ "$EUID" -eq 0 ]] && INSTALL_DIR="/usr/local/bin"
     if [[ "$INSTALLATION_NOTE" == "OK" ]]; then
         echo -e "${COLOUR[VIVID_GREEN_STDOUT]:-}✅ $app_name_and_version is already successfully installed to  ${INSTALL_DIR@Q}${COLOUR[OFF_STDOUT]:-}"
         return 0
     fi
 
-    if [[ "$INSTALLATION_NOTE" == *"[NotCopied]"* ]] && ! cp "$THIS_EXE" "$INSTALL_DIR_WITH_EXE" ; then
-        echo "❌  Failed to copy $THIS_EXE to $INSTALL_DIR_WITH_EXE"
-        return 1
+    if [[ "$INSTALLATION_NOTE" == *"[NotCopied]"* ]] ; then
+        if ! do_ensure_file_set  "$INSTALL_DIR_WITH_EXE" "$THIS_EXE" ; then
+            echo "❌  Failed to copy $THIS_EXE to $INSTALL_DIR_WITH_EXE"
+            return 1
+        fi
     fi
 
     if [[ "$INSTALLATION_NOTE" == *"[DirNotInPath]"* ]] ; then

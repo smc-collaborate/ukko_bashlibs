@@ -6,7 +6,7 @@ THIS_DIR_REL="../"
 
 function apps_doInstallOrClean()
 {
-    do_exeInstall_orClean git-shared-checkout
+    ./git-shared-checkout --install
     do_exeInstall_orClean do-run-in-docker
 }
 

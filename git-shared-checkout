@@ -20,17 +20,22 @@ else
     SHARED_GIT_DIR_DISPLAY='~/gits-shared'
 fi
 
-APP_VERSION="v0.0.5e"
+APP_VERSION="v0.0.5f"
 APP_SELF_INSTALL='yes'
 function app_help()
 {
     echo -e "$EXE_NAME: Checkout a git repository to the shared location ${COLOUR[VIVID_BLUE_STDOUT]:-}${SHARED_GIT_DIR_DISPLAY}${COLOUR[OFF_STDOUT]:-} and return the path to the checkout."
 
-    echo -e "Usage: $EXE_NAME [--reload|--clear] [--quiet] <repo_path> [--ref=<ref>]"
+    echo -e "Usage: $EXE_NAME [--reload|--clear] [options] <repo_path> [--ref=<ref>]"
     echo -e "       <ref> = hash:###      -or-"
     echo -e "               branch:###    -or-"
     echo -e "               tag:###       -or-"
     echo -e "               hash-only:###  (No git history - only download the files)"
+    echo -e "Other options:"
+    echo -e "       --reload           Clear the checkout and reload it from the repository (if it already exists)"
+    echo -e "       --clear            Clear the checkout without reloading it (if it already exists)"
+    echo -e "       --quiet=yes/no     Suppress informational messages (warnings and errors will still be shown)"
+    #echo -e
     echo -e "   eg: ${COLOUR[VIVID_BLUE_STDOUT]:-}cat \"\$($EXE_NAME https://github.com/Mac-H/ukko_gists)/readme.md\"${COLOUR[OFF_STDOUT]:-}"
     echo -e ""
     echo -e " -or-  $EXE_NAME [--list]"
@@ -44,7 +49,7 @@ function app_help()
 #    --------------------  ----------------
 #  * option_is_reload      'no'
 #  * option_is_erase       'no'
-#  * option_is_quiet       'no-unless-info'
+#  * option_is_quiet       'yes-unless-info'
 #  * option_ref_type       ''
 #  * option_ref_value      ''
 #  * option_repo_url       ''
@@ -59,13 +64,12 @@ function app_load_param_defaults()
 {
     option_is_reload='no'
     option_is_erase='no'
-    option_is_quiet='no-unless-info'
+    option_is_quiet='yes-unless-info'
 
     option_ref_type=''
     option_ref_value=''
     option_repo_url=''
     option_list_shared_checkouts='no'
-
     [[ "${GIT_SHARED_CHECKOUT_QUIET:-}" == "yes" ]] && option_is_quiet='yes'
 }
 
@@ -94,12 +98,12 @@ function app_load_param_option_name_value()
     #
     # Option arguments  (Typically of the form '-n', '--name' or '--name=value')
     #
-    if [[   "$name" == '--list'   ]] ; then   option_list_shared_checkouts=yes
-    elif [[ "$name" == '--reload' ]] ; then   option_is_reload='yes'
-    elif [[ "$name" == '--clear'  ]] ; then   option_is_erase='yes'
-    elif [[ "$name" == '--quiet'  ]] ; then   option_is_quiet='yes'
-    elif [[ "$name" == '--quiet=' ]] ; then
-        app_load_param_validate_from_list "$name" "$value" "yes,no,no-unless-info"
+    if [[   "$name" == '--list'    ]] ; then   option_list_shared_checkouts=yes
+    elif [[ "$name" == '--reload'  ]] ; then   option_is_reload='yes'
+    elif [[ "$name" == '--clear'   ]] ; then   option_is_erase='yes'
+    elif [[ "$name" == '--quiet'   ]] ; then   option_is_quiet='yes'
+    elif [[ "$name" == '--quiet='  ]] ; then
+        app_load_param_validate_from_list "$name" "$value" "yes,no,yes-unless-info"
         option_is_quiet="$value"
     elif [[ "$name" == '--ref=' ]]; then
         ref_arg="${value}"
@@ -133,7 +137,7 @@ function app_load_param_option_name_value()
 #    --------------------  ----------------
 #  * option_is_reload      'no'
 #  * option_is_erase       'no'
-#  * option_is_quiet       'no-unless-info'
+#  * option_is_quiet       'yes-unless-info'
 #  * option_ref_type       ''
 #  * option_ref_value      ''
 #  * option_repo_url       ''
@@ -147,7 +151,7 @@ function app_run()
         [[ -n "$option_repo_url" ]] || return 0
     fi
 
-    [[ -n "$option_repo_url" ]] || do_errorExitWithSuggestion "Repository URL not provided."
+    [[ -n "$option_repo_url" ]] || do_errorExitWithSuggestion "Expected Repository URL or --list"
 
 
 
@@ -231,7 +235,7 @@ function app_run()
         mkdir -p "$repo_fullDir"
         cd "$repo_fullDir" || true
 
-        [[ "$option_is_quiet" == 'no-unless-info' ]] && echo -e "Loading from cloud: ${COLOUR[VIVID_BLUE_STDERR]:-}$repo_friendlyName${COLOUR[OFF_STDERR]:-} into $repo_fullDir" >&2 && option_is_quiet='no'
+        [[ "$option_is_quiet" == 'yes-unless-info' ]] && echo -e "Loading from cloud: ${COLOUR[VIVID_BLUE_STDERR]:-}$repo_friendlyName${COLOUR[OFF_STDERR]:-} into $repo_fullDir" >&2 && option_is_quiet='no'
 
         #########################
         #
@@ -406,6 +410,8 @@ function load_gitInfo()
         return
     elif [[ "$option_ref_type" == 'hash-only' ]] ; then
         gitInfo_description="only:#${option_ref_value}"
+    elif [[ -n "$(find "$repo_fullDir" -maxdepth 0 -empty)" ]] ; then
+        gitInfo_description="<EMPTY>"
     elif ! hash="$(git -C "$repo_fullDir" describe --always --dirty 2>/dev/null)"; then
         gitInfo_warning="<INVALID_GIT>"
     else
@@ -446,7 +452,6 @@ function load_gitInfo()
 #
 # Imported from lib-common.inc.bash
 #
-THIS_EXE="$(readlink -m "${BASH_SOURCE[0]}")"
 
 function displayPath()
 {
@@ -468,7 +473,7 @@ function displayPath()
         trailingFile=''
     fi
 
-    local max_back=3
+    local max_back=4
     if [[ "${1:-}" == "--max-back="* ]] ; then
         max_back="${1#--max-back=}"
         shift 1 || true
@@ -482,15 +487,22 @@ function displayPath()
 
     orig="$(realpath "${pathToReview}")"
     result="${orig/#$HOME/\~}"
-    relPath="$(realpath --relative-to="${PWD%/}/" "${orig}")"
+    relPath="$(realpath --relative-to="${ORIG_PWD%/}/" "${orig}")"
     [[ "${1:-}" == "--run-path" ]] && [[ "$relPath" != *"/"* ]] && relPath="./${relPath}"
     [[ "$relPath" != *"${skip_relative_if_contains}"* ]] && [[ "${#result}" -gt  "${#relPath}" ]] && result="$relPath"
         skip_relative_if_contains="${skip_relative_if_contains%/}"
 
     if [[ "${1:-}" == "--run-path" ]] ; then
         # Is this exe available in PATH ?
-        local exe_dir="${orig%/*}"
-        local exe_name="${fname_in##*/}"
+
+        if [[ -n "$trailingFile" ]] ; then
+            local exe_dir="${orig%/}"
+            local exe_name="$trailingFile"
+        else
+            local exe_dir="${orig%/*}"
+            local exe_name="${fname_in##*/}"
+        fi
+
         IFS=: read -r -d '' -a path_array < <(printf '%s:\0' "$PATH")
         # Loop through the array elements
         for pathDir in "${path_array[@]}"; do
@@ -516,6 +528,68 @@ function displayPath()
 
     echo -n "$fname_out"
 }
+
+
+function _quoteIfNeeded()
+{
+    local permitDoubleQuoting="${1}"
+    shift 1
+
+    local value
+    local result=''
+
+    for value in "$@" ; do
+        [[ -n "$result" ]] && echo -n " "
+
+        issues=''
+        result="$value"
+
+        doubleQuotable="${permitDoubleQuoting:-yes}"
+        [[ "$value" == ''    ]] && issues+='[empty]'
+        [[ "$value" == *"'"* ]] && issues+='[singleQuotes]'
+        [[ "$value" == *'"'* ]] && issues+='[doubleQuotes]' && doubleQuotable='no'
+        [[ "$value" == *" "* ]] && issues+='[spaces]'
+        [[ "$value" == *'`'* ]] && issues+='[backticks]'    && doubleQuotable='no'
+        [[ "$value" == *'$'* ]] && issues+='[dollarSigns]'  && doubleQuotable='no'
+        [[ "$value" == *'|'* ]] && issues+='[pipes]'
+        [[ "$value" == *'&'* ]] && issues+='[ampersands]'
+        [[ "$value" == *'('* ]] && issues+='[openParens]'
+        [[ "$value" == *')'* ]] && issues+='[closeParens]'
+        [[ "$value" == *'{'* ]] && issues+='[openBraces]'
+        [[ "$value" == *'}'* ]] && issues+='[closeBraces]'
+        [[ "$value" == *'['* ]] && issues+='[openBrackets]'
+        [[ "$value" == *']'* ]] && issues+='[closeBrackets]'
+        [[ "$value" == *'<'* ]] && issues+='[lessThan]'
+        [[ "$value" == *'>'* ]] && issues+='[greaterThan]'
+        [[ "$value" == *';'* ]] && issues+='[semicolons]'
+        # shellcheck disable=SC1003
+        [[ "$value" == *'\'* ]] && issues+='[backslashes]'
+
+
+        if [[ -n "$issues" ]] ; then
+            if [[ "$doubleQuotable" == 'yes' ]] ; then
+                result="\"${value}\""
+            elif [[ "$issues" != *'[singleQuotes]'* ]] ; then
+                result="'${value}'"
+            else
+                result="$(printf "%q" "$value")"
+            fi
+            #|Logging| printf "   Value \`%s\` will be quote protected: %s\n" "$value" "$result" >&2
+        fi
+
+        echo -n "$result"
+    done
+    return 0
+}
+
+function quoteIfNeeded()
+{
+    _quoteIfNeeded "yes" "$@"
+}
+
+THIS_EXE="$(readlink -m "${BASH_SOURCE[0]}")"
+ORIG_PWD="$(pwd)"
+CMD_AS_DISPLAY="$(displayPath "$0" --link-src --run-path)"
 
 ##################################################
 #
@@ -595,6 +669,152 @@ function colours_load()
 
 colours_load "auto"
 
+
+overallBashResult=0
+function doRun()
+{
+    local silent_if_ok=no
+
+    if [[ "${1:-}" == "--silent-if-ok" ]] ; then
+        silent_if_ok=yes
+        shift 1 || true
+    fi
+    local expected_result=0
+    if [[ "${1:-}" == "--expect-exit-code="* ]] ; then
+        expected_result="${1#--expect-exit-code=}"
+        shift 1 || true
+    fi
+
+    local result=0
+
+    local tmpfile ; tmpfile="$(mktemp "/tmp/doRun.XXXXXX")"
+
+
+    "$@" &> "$tmpfile" || result=$?
+
+    local exitCodeNote=''
+
+    [[ "$result" -ne 0 ]] && exitCodeNote="[Exit code: $result]"
+
+    if [[ "$result" == "$expected_result" ]]; then
+        [[ "$silent_if_ok" == "yes" ]] && return 0
+        echo "      ✓ Ran${exitCodeNote}: $*"
+    else
+        echo "      ✗ Ran${exitCodeNote}: $*"UK
+        echo "        ❌ Responded with: $result"
+        # shellcheck disable=SC2034
+        overallBashResult="$result"
+    fi
+    [[ -s "$tmpfile" ]] && withLeftBox "             " < "$tmpfile"
+
+    rm -f "$tmpfile"
+    return $result
+}
+
+function withPrefix()
+{
+    local prefix="$1"
+    sed --unbuffered "s/^/${prefix}/" || return 0
+}
+
+function withLeftBox()
+{
+    local prefix="${1:-}"
+    echo       "${prefix}╭───────────────────────────────────────────────────────────────────────"
+    withPrefix "${prefix}│ "
+    echo       "${prefix}╰───────────────────────────────────────────────────────────────────────"
+}
+
+function doRun-groupedOutput()
+{
+    local result
+    echo                   "╭───────────────────────────────────────────────────────────────────────"
+    "$@" 2>&1 | withPrefix "│ "
+    result="${PIPESTATUS[0]}"
+    echo                   "╰───────────────────────────────────────────────────────────────────────"
+    return "$result"
+}
+
+function doWithSuccessMsg()
+{
+    local success_msg="$1"
+
+    shift 1 || true
+
+    doRun --silent-if-ok "$@" || return $?
+
+    echo "$success_msg"
+}
+
+function sudoIfNeeded() {
+    export DEBIAN_FRONTEND=noninteractive
+    if [[ "$(id -u)" -ne 0 ]] ; then
+        sudo sudo ORIG_PWD="${ORIG_PWD:-}" "$@"
+    else
+        "$@"
+    fi
+}
+
+
+function do_remove_link()
+{
+    local link="$1"
+    local optional_unless_target="${2:-}"
+
+    if [[ -L "$link" ]] ; then
+        if [[ -n "${optional_unless_target}" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$optional_unless_target")" ]] ; then
+            echo "    • Keeping link : $(displayPath "$link" --link-src) → $(displayPath "$optional_unless_target")"
+        else
+            doWithSuccessMsg "    • Unlinked existing: $(displayPath "$link" --link-src)"  unlink "$link"  || return $?
+        fi
+    elif [[ -e "$link" ]] ; then
+        doWithSuccessMsg "    • Removed existing file/directory: $(displayPath "$link" --link-src)"  rm -rf "$link" || return $?
+    fi
+}
+
+function do_ensure_link()
+{
+    local link="$1"
+    local target="$2"
+
+    if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
+        do_remove_link "$link" || return $?
+    elif [[ -L "$link" ]] && [[ "$(readlink -f "$link")" == "$(readlink -f "$target")" ]] ; then
+        printf "    • Link confirmed: %-24s → %s\n" "$(displayPath "$link" --link-src)" "$(displayPath "$target")"
+    else
+        do_remove_link "$link" || return $?
+        target_parent="$(dirname "$target")"
+        [[ -d "$target_parent" ]] || doWithSuccessMsg "    • Created parent : $(displayPath "$target_parent")"  mkdir -p "$target_parent" || return $?
+        doWithSuccessMsg "    • Created link: $(displayPath "$link" --link-src) → $(displayPath "$target")"  ln -s "$target" "$link" || return $?
+    fi
+
+    return 0
+}
+
+function do_ensure_file_set()
+{
+    local dest_fname="$1"
+    local src_fname="$2"
+    local gave_success_msg="no"
+
+    if [[ -L "$dest_fname" ]] || [[ ! -f "$dest_fname" ]] || ! cmp --silent "$dest_fname" "$src_fname" ; then
+        do_remove_link "$dest_fname"  || return $?
+        doWithSuccessMsg "    • Updated file: $(displayPath "$dest_fname")"  cp "$src_fname" "$dest_fname" || return $?
+        gave_success_msg='yes'
+    fi
+
+
+    local src_attr ; src_attr=$(stat --printf="%a" "$src_fname")
+    local dst_attr ; dst_attr=$(stat --printf="%a" "$dest_fname")
+    if [[ "$src_attr" != "$dst_attr" ]] ; then
+        doWithSuccessMsg "    • Updated permissions for $(displayPath "$dest_fname") : $dst_attr → $src_attr"  chmod "$src_attr" "$dest_fname" || return $?
+        gave_success_msg='yes'
+    fi
+
+
+    [[ "$gave_success_msg" == 'yes' ]] || echo "    • File confirmed: $(displayPath "$dest_fname")"
+    return 0
+}
 
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -807,14 +1027,12 @@ function load_params()
                 giveStdHelp='yes'
             elif [[ "$arg" == '--colours=no' ]] || [[ "$arg" == '--colours=yes' ]] || [[ "$arg" == '--colours=auto' ]]; then
                 colours_load "${arg#--colours=}"
-            elif [[ "${APP_SELF_INSTALL:-}" == "yes" ]] ; then
-                if [[ "$INSTALLATION_NOTE" == "OK" ]] && [[ "$arg" == "--uninstall" ]] ; then
-                    (sleep 0.5 && rm -f "$THIS_EXE" && echo "Removed $THIS_EXE") &
-                    exit 0
-                elif [[ "$arg" == "--install" ]] ; then # Always permit 'install' even if the app is already installed, as this can be used to fix an installation that is not working (e.g. due to missing copy or missing PATH entry)
-                    do_install_directly
-                    exit 0
-                fi
+            elif [[ "${APP_SELF_INSTALL:-}" == "yes" ]] && [[ "$INSTALLATION_NOTE" == "OK" ]] && [[ "$arg" == "--uninstall" ]] ; then
+                (sleep 0.5 && rm -f "$THIS_EXE" && echo "Removed $THIS_EXE") &
+                exit 0
+            elif [[ "${APP_SELF_INSTALL:-}" == "yes" ]] && [[ "$arg" == "--install" ]] ; then # Always permit 'install' even if the app is already installed, as this can be used to fix an installation that is not working (e.g. due to missing copy or missing PATH entry)
+                do_install_directly "      "
+                exit 0
             elif [[ "$arg" == '--code-help' ]] ; then
                 giveCodeHelp='yes'
             elif [[ "$arg" == "--"*"="* ]] ; then
@@ -831,7 +1049,7 @@ function load_params()
         giveCodeHelp
         exit 0
     elif [[ "$giveStdHelp" == "yes" ]]; then
-        do_exitWithHelp ''
+        do_exitWithHelp ""
     fi
 
 }
@@ -863,26 +1081,28 @@ function do_with_check()
 }
 
 
-
 function do_install_directly()
 {
-    local INSTALL_DIR="${HOME%/}/.local/bin" ; [[ "$EUID" -eq 0 ]] && INSTALL_DIR="/usr/local/bin"
+    local prefix="${1:-}"
     if [[ "$INSTALLATION_NOTE" == "OK" ]]; then
-        echo -e "${COLOUR[VIVID_GREEN_STDOUT]:-}✅ $app_name_and_version is already successfully installed to  ${INSTALL_DIR@Q}${COLOUR[OFF_STDOUT]:-}"
+        echo -e "${prefix}${COLOUR[VIVID_GREEN_STDOUT]:-}✅ $app_name_and_version is already successfully installed to  ${INSTALL_DIR@Q}${COLOUR[OFF_STDOUT]:-}"
         return 0
     fi
 
-    if [[ "$INSTALLATION_NOTE" == *"[NotCopied]"* ]] && ! cp "$THIS_EXE" "$INSTALL_DIR_WITH_EXE" ; then
-        echo "❌  Failed to copy $THIS_EXE to $INSTALL_DIR_WITH_EXE"
-        return 1
+    if [[ "$INSTALLATION_NOTE" == *"[NotCopied]"* ]] ; then
+        if ! do_ensure_file_set  "$INSTALL_DIR_WITH_EXE" "$THIS_EXE" ; then
+            echo -e "${prefix}${COLOUR[VIVID_RED_STDERR]:-}❌  Failed to copy $THIS_EXE to $INSTALL_DIR_WITH_EXE${COLOUR[OFF_STDERR]:-}"
+            return 1
+        fi
     fi
 
     if [[ "$INSTALLATION_NOTE" == *"[DirNotInPath]"* ]] ; then
-        echo "⚠️  $app_name_and_version installed to ${INSTALL_DIR@Q} but it is NOT in PATH. Please add ${INSTALL_DIR@Q} to your PATH environment variable." >&2
+        echo -e "${prefix}${COLOUR[VIVID_RED_STDERR]:-}⚠️  $app_name_and_version installed to ${INSTALL_DIR@Q} but it is NOT in PATH. Please add ${INSTALL_DIR@Q} to your PATH environment variable.${COLOUR[OFF_STDERR]:-}" >&2
         return 1
     fi
-     echo "✅  $app_name_and_version installed successfully to ${INSTALL_DIR@Q} and is available in PATH"
+     echo -e "${prefix}✅  ${COLOUR[VIVID_BLUE_STDOUT]:-}$app_name_and_version${COLOUR[OFF_STDOUT]:-} installed successfully to ${INSTALL_DIR@Q} and is available in PATH"
 }
+
 
 
 hadWarning='no'
