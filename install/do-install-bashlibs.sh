@@ -7,7 +7,7 @@ THIS_DIR_REL="../"
 function apps_doInstallOrClean()
 {
     ./git-shared-checkout --install
-    do_exeInstall_orClean do-run-in-docker
+    do_exeInstall_orClean part_do-run-in-docker/do-run-in-docker
 }
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib-build-funcs.inc.bash"

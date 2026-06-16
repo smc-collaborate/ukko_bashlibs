@@ -15,9 +15,11 @@ APP_DESCRIPTION="Runs a command on a docker image with some supportive extras (e
 
 function app_help()
 {
-    echo -e "Usage : ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} <docker-image> [options] -- [cmd to run] [parameters for cmd..]${COLOUR[OFF_USED]:-}"
+    echo -e "Usage : ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} <docker-images> [options] -- [cmd to run] [parameters for cmd..]${COLOUR[OFF_USED]:-}"
     echo ""
-    echo "Options:  <docker-image>     : Docker image to use for testing (e.g. 'ubuntu:22.04')"
+    echo "Options:  <docker-images>    : Docker images to use for testing"
+    echo "                               (e.g. 'ubuntu:22.04' -or 'ubuntu:24.04,ubuntu:24.04,ubuntu:26.04,ubuntu:latest')"
+    echo ""
     echo ""
     echo "          --exit=yes         : Always exit after running the command  **DEFAULT**"
     echo "          --exit=no          : Don't exit automatically after running the command"
@@ -42,7 +44,7 @@ function app_help()
 
 function app_load_param_defaults()
 {
-    option_docker_image=''
+    option_docker_images=''
     option_exit='on-success'
     option_workspace="$ORIG_PWD"
     option_keys_dir='' ;   [[ -n "${HOME:-}" ]] && option_keys_dir="${HOME%/}/.ssh/"
@@ -53,7 +55,7 @@ function app_load_param_defaults()
 
 function app_load_param_direct_value()
 {
-    [[ -z "${option_docker_image:-}" ]] && option_docker_image="$1" && return 0
+    [[ -z "${option_docker_images:-}" ]] && option_docker_images="$1" && return 0
 
     option_cmd_to_run+=("$1")
     return 0
@@ -61,18 +63,54 @@ function app_load_param_direct_value()
 
 function app_load_param_option_name_value()
 {
-    [[ "$1" == '--docker-image=' ]] && option_docker_image="$2" && return 0
-    [[ "$1" == '--workspace='    ]] && option_workspace="$2"    && return 0
-    [[ "$1" == '--keys-dir='     ]] && option_keys_dir="$2"     && return 0
-    [[ "$1" == '--exit='         ]] && option_exit="$2"         && app_load_param_validate_from_list "$1" "$2" yes no on-success && return 0
-    [[ "$1" == '--dry-run'       ]] && option_dry_run='yes'     && return 0
-    [[ "$1" == '--apt-get='      ]] && option_apt_get="$2"      && app_load_param_validate_from_list "$1" "$2" yes no && return 0
+    [[ "$1" == '--docker-images=' ]] && option_docker_images="$2" && return 0
+    [[ "$1" == '--workspace='     ]] && option_workspace="$2"    && return 0
+    [[ "$1" == '--keys-dir='      ]] && option_keys_dir="$2"     && return 0
+    [[ "$1" == '--exit='          ]] && option_exit="$2"         && app_load_param_validate_from_list "$1" "$2" yes no on-success && return 0
+    [[ "$1" == '--dry-run'        ]] && option_dry_run='yes'     && return 0
+    [[ "$1" == '--apt-get='       ]] && option_apt_get="$2"      && app_load_param_validate_from_list "$1" "$2" yes no && return 0
     return 1
 }
 
 function app_run()
 {
-    [[ -n "${option_docker_image:-}" ]] || do_errorExitWithSuggestion "Docker image not specified"
+    IFS=',' read -ra docker_images_array <<< "$option_docker_images"
+
+    [[ "${#docker_images_array[@]}" -eq 0 ]] && do_errorExitWithSuggestion "Docker images not specified"
+
+    local results=()
+    local overall_result_code=0
+    local index=1
+    for img in "${docker_images_array[@]}" ; do
+        echo "Running image[$index]: $img"
+        local this_result=0
+        docker_run "$img" || this_result="$?"
+
+        if [[ "$this_result" == 0 ]]; then
+            _msg="✅  Docker run succeeded : $(quoteIfNeeded "${docker_params[@]}")"
+        else
+            _msg="❌  Docker run failed    : $(quoteIfNeeded "${docker_params[@]}")"
+            [[ "$this_result" != 1 ]] && _msg+="  [Exit code: $this_result]"
+        fi
+
+        [[ "$this_result" == 0 ]] || overall_result_code="$this_result"
+
+        results+=("$_msg")
+        ((index++))
+    done
+    echo ""
+    echo "Overview:"
+    for msg in "${results[@]}" ; do
+        echo "$msg"
+    done
+
+    return "$overall_result_code"
+}
+
+function docker_run()
+{
+    local docker_image="$1"
+
 
     #[[ "$option_dry_run" != 'yes']] && ! command -v docker &> /dev/null && do_errorExitWithSuggestion "Docker is not installed or not in PATH. Please install Docker to use this app."
 
@@ -85,7 +123,7 @@ function app_run()
     ######
     #
     tmpdir_for_startup_script="$(mktemp -d '/tmp/runWithinImage_XXXX')"
-    cp -a "${THIS_DIR%/}/_internalUse/do-run-in-docker_startup.sh" "${tmpdir_for_startup_script}/_startup.sh"
+    cp -a "${THIS_DIR%/}/_internalUse/_in_docker_startup.sh" "${tmpdir_for_startup_script}/_startup.sh"
 
     if [[ "${option_apt_get}" == "yes" ]] ; then
        {
@@ -108,14 +146,14 @@ function app_run()
     #
     ######
     [[ -n "${option_workspace:-}"  ]] && docker_params+=("-v" "${option_workspace%/}/:/workspace")
-    docker_params+=("${option_docker_image}")
+    docker_params+=("${docker_image}")
     docker_params+=("bash" "/startup/_startup.sh" "--exit=${option_exit}")
 
     [[ "${#option_cmd_to_run[@]}" -gt 0 ]] && docker_params+=("run:" "${option_cmd_to_run[@]}")
 
     echo "             -> $(quoteIfNeeded "${docker_params[@]}")"
 
-    [[ -n "${option_dry_run:-}" ]] && echo "Dry-run mode enabled, not executing the docker command." && exit 0
+    [[ -n "${option_dry_run:-}" ]] && echo "Dry-run mode enabled, not executing the docker command." && return 0
 
     local result=0
     "${docker_params[@]}" || result="$?"
@@ -124,7 +162,7 @@ function app_run()
 
     rm -rf "${tmpdir_for_startup_script}"
 
-    exit "$result"
+    return "$result"
 }
 
 function create_executable_run_script()
@@ -135,4 +173,4 @@ function create_executable_run_script()
 
     chmod +x "$script_path"
 }
-source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/lib-app.inc.bash"
+source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/../lib-app.inc.bash"
