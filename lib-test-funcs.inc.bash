@@ -81,10 +81,13 @@ function testEnd()
 function doFail()
 {
     failFound='yes'
-    local msg="$*"
-    msg="${msg:-"Test Failed"}"
+    local msg="${1:-Test Failed}"
+    shift || true
     echo "❌  $msg"
 
+    for line in "$@"; do
+        echo "❌  $line"
+    done
     return 1
 }
 
@@ -221,7 +224,8 @@ function get_GOLD_REF_DIR()
     msgs+=("⚠️  - GRANDPARENT_DIR =$GRANDPARENT_DIR")
     #msgs+=("⚠️    - SAMPLES_DIR    =$SAMPLES_DIR")
 
-    for dir in "${GRANDPARENT_DIR}" "${PARENT_DIR}" "${THIS_DIR}" "-end-"; do
+    for dir in "${PROJ_DIR:-}" "${GRANDPARENT_DIR}" "${PARENT_DIR}" "${THIS_DIR}" "-end-"; do
+        [[ -z "${dir}" ]] && continue
         if [[ "${dir}" == "-end-" ]] ; then
             echo "⚠️  \$GOLD_REF_DIR : Not found - defaulting to missing: ${GOLD_REF_DIR}"
             for msg in "${msgs[@]}" ; do
@@ -245,30 +249,48 @@ function get_GOLD_REF_DIR()
 # shellcheck disable=SC2317
 function find_and_run_tests()
 {
+    dirs_to_review=("${THIS_DIR%/}" "${THIS_DIR%/}/testing" "${THIS_DIR%/}/tests" "$@")
+
     tests=()
-    for file in "${THIS_DIR%/}"/test_*.sh; do
-        [[ -f "$file" ]] && tests+=("$file")
+
+    for dir in "${dirs_to_review[@]}"; do
+        for file in "${dir%/}"/test_*.sh; do
+            [[ -f "$file" ]] && tests+=("$file")
+        done
     done
-    for file in "${THIS_DIR%/}"/testing/test_*.sh; do
-        [[ -f "$file" ]] && tests+=("$file")
-    done
-    for file in "${THIS_DIR%/}"/tests/test_*.sh; do
-        [[ -f "$file" ]] && tests+=("$file")
-    done
+
     if [[ "${#tests[@]}" -eq 0 ]] ; then
-        doFail "No test scripts found in: ${THIS_DIR_AS_DISPLAY%/}: [test_*.sh, testing/test_*.sh, tests/test_*.sh]"
-    # |x|else
-    # |x|    for line in "${tests[@]}"; do
-    # |x|        rel="$(displayPath "${line}")"
-    # |x|        echo " Will run: $rel"
-    # |x|    done
+        local _errs=("No 'test_*.sh' scripts found in:")
+
+        for x in "${dirs_to_review[@]}"; do
+            _errs+=(" • $(displayPath "${x}")")
+        done
+        doFail "${_errs[@]}"
     fi
 
-
     for line in "${tests[@]}"; do
-        rel="$(displayPath "${line}")"
-        "${line}" || doFail "Failed ${rel}"
+        "${line}" || doFail "Failed $(displayPath "${line}")"
     done
+}
+
+# shellcheck disable=SC2317
+function ukkoVerify()
+{
+    # --output-format=json-full
+    echo -e -n "${BOLD_BLUE_STDOUT:-}"
+    echo "ukkoTestCommand verify $*"
+    echo -e  "${NC_STDOUT:-}"
+    ukkoTestCommand verify "$@" && return 0
+
+    didFail='yes'
+
+    if [[ "${TEST_SUPPORT_EXIT_ON_FAIL:-}" == "yes" ]] ; then
+        echo -e "Exiting due to ${BOLD_RED_STDOUT:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${NC_STDOUT:-}"
+        exit 1
+    elif [[ "${_test_support_exit_on_fail_warned:-}" != "yes" ]] ; then
+        echo -e "⚠️  To exit on the first failure in future, ${BOLD_RED_STDOUT:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${NC_STDOUT:-}"
+        _test_support_exit_on_fail_warned='yes'
+    fi
 }
 
 
@@ -288,6 +310,9 @@ main_result_code=0
 
 {
     set -e
+
+    [[ "$(type -t setupForMain)" == 'function' ]] && setupForMain "$@"
+
     main "$@" || return 1
     [[ "${didFail:-}" != 'yes' ]] || return 1
     return 0
