@@ -410,7 +410,7 @@ function do_setupPythonVenv_orClean()
         return 0
     fi
 
-g    pushd "${ENV_ROOT%/}" >/dev/null || true
+    pushd "${ENV_ROOT%/}" >/dev/null || true
     {
         {
             python3_subver="$(python3 --version | sed 's|^Python 3\.||g' | sed 's|\..*$||g')"
