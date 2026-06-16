@@ -1,6 +1,12 @@
 # shellcheck disable=all
 # source this file - not a script to run directly
-echo "⚠️  ℹ️  ❓  Deprecated - REFACTOR TO USE 'lib-test-funcs.inc.bash' instead" >&2
+{
+    echo "❓  | Deprecated - use 'lib-test-funcs.inc.bash' instead of 'utils.inc.bash'"
+    echo "❓  | Path:"
+    for x in "${BASH_SOURCE[@]}" ; do
+        echo "❓  |   - $x"
+    done
+} >&2
 
 libSupport_testName=""
 libSupport_testCmd=""

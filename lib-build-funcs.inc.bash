@@ -902,13 +902,12 @@ if [[ "${1:-}" == '--help' ]] || [[ "${1:-}" == '-h' ]] ; then
 
     echo "Usage: ${CMD_AS_DISPLAY} [--clean | --fresh] [--with-tests]${_msg1} [other params for build functions ...]"
     echo ""
+    echo "   --with-tests : Run tests after building"
+    [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] && echo "${_msg2}"
+    echo ""
     echo "   --clean      : Clean all outputs (build artifacts, generated sources, installed applications, etc)"
     echo "   --fresh      : Clean all outputs and then build (same as --clean followed by normal execution)"
-    echo "   --with-tests : Run tests after building"
     echo "   --remove     : Alias of --clean"
-    echo "   --uninstall  : Alias of --clean"
-    [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] && echo "${_msg2}"
-
     echo "   --uninstall  : Alias of --clean"
     echo ""
     echo "Other parameters are passed to the build functions (e.g., apps_doBuildOrClean) and can be used to customize the build process.  For example, you could use '--only=source_generate' to only generate sources without building applications or setting up virtual environments."
