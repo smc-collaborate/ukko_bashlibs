@@ -921,11 +921,17 @@ if [[ "${1:-}" == '--clean' ]] || [[ "${1:-}" == '--fresh' ]] || [[ "${1:-}" == 
     export AM_CLEANING='yes'
 fi
 
-if [[ "${1:-}" == '--with-tests' ]]  ; then
+if [[ "${1:-}" == '--with-tests' ]] || [[ "${1:-}" == '--with-tests=yes' ]]  ; then
     shift || true
-    export RUN_TESTS='yes'    # Export means that this is recursive - any install script called from here will also do tests
-# |SeeNote| else
-# |SeeNote|     export RUN_TESTS='no'     # Uncomment to make this non-recursive - otherwise any install script called from here will also do tests
+    export RUN_TESTS='yes'
+elif [[ "${1:-}" == '--with-tests=no' ]] ; then
+    shift || true
+    export RUN_TESTS='no'
+else
+    true
+    # Use the exported value of 'RUN_TESTS' in the higher level
+    # This means that it is recursive
+    # If this is not wanted - set the default value here
 fi
 
 
@@ -971,22 +977,44 @@ if [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] && [[ "${1:-}" == '--with-docker
     _amVerifyingInDocker='yes'
 fi
 
-_fullResult=0
 
 
-doRunAll "$@" || _fullResult="$?"
 
-if [[ "$_amVerifyingInDocker" == 'yes' ]] ; then
-    echo "Process completed in host environment with result: $_fullResult"
-    echo "Verifying that in the docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
+function do_all()
+{
+    _fullResult=0
+    doRunAll "$@" || _fullResult="$?"
 
-    run_cmd=(do-run-in-docker "$VERIFY_ON_BUILD_ENVIRONMENTS" -- "${0}" )
-    for x in "${ORIG_PARAMS[@]}" ; do
-        [[ "$x" == '--with-docker' ]] || run_cmd+=( "$x" )
-    done
-    echo "Running: ${COLOUR[VIVID_BLUE_STDOUT]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_STDOUT]:-}"
-    "${run_cmd[@]}" || _fullResult="$?"
-    echo -e "⚠️  Warning - You may need to remove locally built files with '${COLOUR[VIVID_BLUE_STDOUT]:-}${CMD_AS_DISPLAY} --fresh${COLOUR[OFF_STDOUT]:-}' if there are local build artifacts"
+    if [[ "$_amVerifyingInDocker" == 'yes' ]] ; then
+        if [[ "$_fullResult" != 0 ]] ; then
+            echo "Process failed in host environment with result: $_fullResult"
+            echo "Not running in docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
+        else
+            echo "Process completed in host environment with successresult: $_fullResult"
+            echo "Verifying that in the docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
+
+            run_cmd=(do-run-in-docker "$VERIFY_ON_BUILD_ENVIRONMENTS" -- "${0}" )
+            for x in "${ORIG_PARAMS[@]}" ; do
+                [[ "$x" == '--with-docker' ]] || run_cmd+=( "$x" )
+            done
+            echo "Running: ${COLOUR[VIVID_BLUE_STDOUT]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_STDOUT]:-}"
+            "${run_cmd[@]}" || _fullResult="$?"
+            echo -e "⚠️  Warning - You may need to remove locally built files with '${COLOUR[VIVID_BLUE_STDOUT]:-}${CMD_AS_DISPLAY} --fresh${COLOUR[OFF_STDOUT]:-}' if there are local build artifacts"
+        fi
+    fi
+
+
+    return "$_fullResult"
+}
+
+_final_result=0
+if [[ "${EXPORT_BUILD_TOP_LEVEL_ALREADY_DONE:-}" != 'yes' ]] ; then
+    export EXPORT_BUILD_TOP_LEVEL_ALREADY_DONE='yes'
+    TIMEFORMAT=$'\n-- Total Time Summary ---\nReal:  %3Rs\nUser:  %3Us\nSys:   %3Ss\nCPU:   %P%%\n----------------------'
+    time do_all "$@" || _final_result="$?"
+    [[ -z "${UKKO_BASHLIBS_REF_FORCE:-}" ]] || echo "⚠️  UKKO_BASHLIBS_REF_FORCE=$UKKO_BASHLIBS_REF_FORCE"
+else
+    do_all "$@" || _final_result="$?"
 fi
 
-exit "$_fullResult"
+return "$_final_result"
