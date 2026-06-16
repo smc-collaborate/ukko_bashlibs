@@ -18,7 +18,7 @@ function app_help()
     echo -e "Usage : ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} <docker-images> [options] -- [cmd to run] [parameters for cmd..]${COLOUR[OFF_USED]:-}"
     echo ""
     echo "Options:  <docker-images>    : Docker images to use for testing"
-    echo "                               (e.g. 'ubuntu:22.04' -or 'ubuntu:24.04,ubuntu:24.04,ubuntu:26.04,ubuntu:latest')"
+    echo "                               (e.g. 'ubuntu:22.04' -or 'ubuntu:22.04,ubuntu:24.04,ubuntu:26.04,ubuntu:latest')"
     echo ""
     echo ""
     echo "          --exit=yes         : Always exit after running the command"
@@ -38,7 +38,7 @@ function app_help()
     readarray -t _builders < <(find "$ORIG_PWD" -mindepth 1 -maxdepth 1 -type f -executable -name '*do-build*')
 
     for cmd in "${_builders[@]}" ; do
-        echo -e "           ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:24.04 --apt-get=yes -- ./${cmd##*/} --with-tests${COLOUR[OFF_USED]:-}"
+        echo -e "           ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:22.04,ubuntu:24.04,ubuntu:26.04,ubuntu:latest --apt-get=yes --exit=yes -- ./${cmd##*/} --with-tests${COLOUR[OFF_USED]:-}"
     done
 }
 
@@ -86,7 +86,9 @@ function app_run()
         local this_result=0
         docker_run "$img" || this_result="$?"
 
-        if [[ "$this_result" == 0 ]]; then
+        if [[ "${option_dry_run:-}" == 'yes' ]] ; then
+            _msg="✅  Docker dry-run       : $(quoteIfNeeded "${docker_params[@]}")"
+        elif [[ "$this_result" == 0 ]]; then
             _msg="✅  Docker run succeeded : $(quoteIfNeeded "${docker_params[@]}")"
         else
             _msg="❌  Docker run failed    : $(quoteIfNeeded "${docker_params[@]}")"
@@ -99,22 +101,19 @@ function app_run()
         ((index++))
     done
     echo ""
-    echo "Overview:"
-    for msg in "${results[@]}" ; do
-        echo "$msg"
-    done
-
+    {
+        echo "Overview:"
+        for msg in "${results[@]}" ; do
+            echo "$msg"
+        done
+    } >&2
+    [[ "$option_dry_run" != 'yes' ]] && ! command -v docker &> /dev/null && do_errorExitWithSuggestion "Docker is not installed or not in PATH. Please install Docker to use this app."
     return "$overall_result_code"
 }
 
 function docker_run()
 {
     local docker_image="$1"
-
-
-    #[[ "$option_dry_run" != 'yes']] && ! command -v docker &> /dev/null && do_errorExitWithSuggestion "Docker is not installed or not in PATH. Please install Docker to use this app."
-
-    echo "Running within docker image with parameters [$(quoteIfNeeded "$@")]"
 
     option_workspace="$(realpath -m "${option_workspace}")"
 
