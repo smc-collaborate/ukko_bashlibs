@@ -6,7 +6,6 @@
 #   source bashlib/lib-build-funcs.inc.bash
 #
 
-
 ############################################################################################################################################################
 # A customisable python installer.
 #
@@ -88,6 +87,7 @@ set_ENV_ROOT
 export ROS_SOURCING=()
 export ROS_DISTRO="${ROS_DISTRO:-}"
 
+# shellcheck disable=SC2317
 function setRosDistroIfNeeded()
 {
     [[ "${AM_CLEANING:-}" == 'yes' ]] && return 0
@@ -111,12 +111,11 @@ function setRosDistroIfNeeded()
     fi
 }
 
+# shellcheck disable=SC2317
 function do_pyRosFile()
 {
-
     local py_file="$1"
     shift 1 || true
-
 
     local py_run_params=()
     local pkg_args=()
@@ -138,11 +137,10 @@ function do_pyRosFile()
     do_pyInstall_orClean "$py_file" --source-start "${ROS_SOURCING[@]}" --source-end "${py_run_params[@]}" "${py_run_params[@]}"
 }
 
+# shellcheck disable=SC2317
 function do_rosPackages()
 {
     setRosDistroIfNeeded
-
-
 
     if false ; then
         echo "🔨  ROS2 Installation"
@@ -288,6 +286,7 @@ function pyApp_cleanIfNeeded()
     fi
 }
 
+# shellcheck disable=SC2317
 function do_gitLfsCheck()
 {
     [[ "${AM_CLEANING:-}" == 'yes' ]] && return 0
@@ -359,7 +358,7 @@ function setupBuildEnvironment()
     [[ "${PIPESTATUS[0]}" == 0 ]] || exit 1
     echo "   └─ Done"
 }
-
+# shellcheck disable=SC2317
 function do_setupPython3()
 {
     do_setupPython3_Done='yes'
@@ -393,6 +392,7 @@ function do_setupPython3()
 }
 #
 #
+# shellcheck disable=SC2317
 function do_setupPythonVenv_orClean()
 {
     ###############################
@@ -410,7 +410,7 @@ function do_setupPythonVenv_orClean()
         return 0
     fi
 
-    pushd "${ENV_ROOT%/}" >/dev/null || true
+g    pushd "${ENV_ROOT%/}" >/dev/null || true
     {
         {
             python3_subver="$(python3 --version | sed 's|^Python 3\.||g' | sed 's|\..*$||g')"
@@ -466,13 +466,12 @@ function do_setupPythonVenv_orClean()
     popd >/dev/null || true
 }
 
+# shellcheck disable=SC2317
 function installLibIfNeeded()
 {
     local git_url="$1"
     local libname="${git_url##*/}"
     libname="${libname%.git}"
-    local libname_ver="${libname^^}_VER"
-    local libname_ver_default="${libname_ver}_DEFAULT"
 
     local dest_dir_parent
 
@@ -486,16 +485,24 @@ function installLibIfNeeded()
     #
     # Version ?
     #
-    local lib_ver="${!libname_ver:-}"
-    local lib_ver_reason=""
-    if [[ -n "$lib_ver" ]] ; then
-        lib_ver_reason="Set with \$${libname_ver}"
-    else
-        lib_ver="${!libname_ver_default:-}"
+    local lib_ver="${2:-}"
+    local lib_ver_reason="Directly chosen"
+
+    if [[ -z "${lib_ver:-}" ]] ; then
+        local libname_ver="${libname^^}_VER"
+        local libname_ver_default="${libname_ver}_DEFAULT"
+
+        local lib_ver="${!libname_ver:-}"
+
         if [[ -n "$lib_ver" ]] ; then
-            lib_ver_reason="Set with \$${libname_ver_default}"
+            lib_ver_reason="Set with \$${libname_ver}"
         else
-            lib_ver_reason="⚠️  No version specified - \$${libname_ver} not set)"
+            lib_ver="${!libname_ver_default:-}"
+            if [[ -n "$lib_ver" ]] ; then
+                lib_ver_reason="Set with \$${libname_ver_default}"
+            else
+                lib_ver_reason="⚠️  No version specified - \$${libname_ver} not set)"
+            fi
         fi
     fi
 
@@ -530,6 +537,13 @@ function installPkgIfNeeded()
         return 1
     fi
 
+    if [[ "$(id -u)" == 0 ]] && ! apt-cache show git &>/dev/null; then
+        #
+        # Apt-cache hasn't been setup yet - common in fresh docker images
+        #
+        echo "⚡  apt-get appears to need updating"
+        apt-get update
+    fi
 
     for package_filter in "$@" ; do
         local _packages=()
@@ -550,6 +564,7 @@ function installPkgIfNeeded()
     done
 }
 
+# shellcheck disable=SC2317
 function do_dumpInstalledExe()
 {
     local __exe_name="$1"
@@ -576,7 +591,7 @@ function do_dumpInstalledExe()
     fi
 }
 
-
+# shellcheck disable=SC2317
 function do_clearDestinationFile()
 {
     local fname_actual="$1"
@@ -598,6 +613,7 @@ function do_clearDestinationFile()
 }
 
 
+# shellcheck disable=SC2317
 function do_pyInstall_orClean()
 {
     [[ "${do_setupPython3_Done:-}" == 'yes' ]] || do_setupPython3 ""
@@ -681,6 +697,7 @@ function do_pyInstall_orClean()
 }
 
 
+# shellcheck disable=SC2317
 function do_exeInstall_orClean()
 {
     local script="$1"
@@ -701,7 +718,7 @@ function do_exeInstall_orClean()
     fi
 }
 
-
+# shellcheck disable=SC2317
 function do_ensure_linked_git_checkout()
 {
     local local_repo_link="$1"
@@ -719,6 +736,7 @@ function do_ensure_linked_git_checkout()
     fi
 }
 
+# shellcheck disable=SC2317
 function do_serviceInstall_orClean()
 {
     exe_name="${1:-}"
@@ -743,6 +761,7 @@ function do_serviceInstall_orClean()
     return 1
 }
 
+# shellcheck disable=SC2317
 function do_systemdEntry()
 {
     fail_msg=""
@@ -757,6 +776,8 @@ function do_systemdEntry()
     echo "❌ Failed to $fail_msg systemd entry: $*"
     return 1
 }
+
+# shellcheck disable=SC2317
 function do_serviceInstall_py_orClean()
 {
     local script="${1:-}"
@@ -774,6 +795,7 @@ function do_serviceInstall_py_orClean()
 
 cd "${THIS_DIR%/}" || true
 
+# shellcheck disable=SC2317
 function git_with_location_params_nice()
 {
     local git_location="${1:-}"
@@ -857,21 +879,36 @@ if [[ "$(type -t main)" != 'function' ]] ; then
                 found_list+='[apps_buildOrClean]'
             fi
             if [[ "$(type -t apps_doInstallOrClean)" == 'function' ]] ; then
+                [[ "$(type -t pre_doInstallOrClean)" == 'function' ]] && pre_doInstallOrClean
                 apps_doInstallOrClean
                 found_list+='[apps_doInstallOrClean]'
             fi
             [[ -n "${found_list}" ]] || FATAL_FAILURE_NO_RETURN "No main(), apps_doBuildOrClean() or apps_doInstallOrClean() function found to run in ${BASH_SOURCE[0]}"
+            if [[ "$(type -t apps_doInstallTestingDependencies)" == 'function' ]] && [[ "${RUN_TESTS:-}" == 'yes' ]] ; then
+                apps_doInstallTestingDependencies
+            fi
         fi
     }
 
 fi
 if [[ "${1:-}" == '--help' ]] || [[ "${1:-}" == '-h' ]] ; then
-    echo "Usage: ${CMD_AS_DISPLAY} [--clean | --fresh] [--with-tests] [other params for build functions ...]"
+    if [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] ; then
+        _msg1=" [--with-docker]"
+        _msg2="   --with-docker: Additionally re-run the build/test process in the docker containers: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
+    else
+        _msg1=""
+        _msg2=""
+    fi
+
+    echo "Usage: ${CMD_AS_DISPLAY} [--clean | --fresh] [--with-tests]${_msg1} [other params for build functions ...]"
     echo ""
     echo "   --clean      : Clean all outputs (build artifacts, generated sources, installed applications, etc)"
     echo "   --fresh      : Clean all outputs and then build (same as --clean followed by normal execution)"
     echo "   --with-tests : Run tests after building"
     echo "   --remove     : Alias of --clean"
+    echo "   --uninstall  : Alias of --clean"
+    [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] && echo "${_msg2}"
+
     echo "   --uninstall  : Alias of --clean"
     echo ""
     echo "Other parameters are passed to the build functions (e.g., apps_doBuildOrClean) and can be used to customize the build process.  For example, you could use '--only=source_generate' to only generate sources without building applications or setting up virtual environments."
@@ -879,7 +916,7 @@ if [[ "${1:-}" == '--help' ]] || [[ "${1:-}" == '-h' ]] ; then
 fi
 
 if [[ "${1:-}" == '--clean' ]] || [[ "${1:-}" == '--fresh' ]] || [[ "${1:-}" == '--remove' ]] || [[ "${1:-}" == '--uninstall' ]] ; then
-    orig_pram="${1:-}"
+    orig_build_kind_param="${1:-}"
     shift || true # Remove the first argument if it is --clean or --fresh
     export AM_CLEANING='yes'
 fi
@@ -891,19 +928,7 @@ if [[ "${1:-}" == '--with-tests' ]]  ; then
 # |SeeNote|     export RUN_TESTS='no'     # Uncomment to make this non-recursive - otherwise any install script called from here will also do tests
 fi
 
-if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
-    main "$@"
-    if [[ "${orig_pram:-}" == '--fresh' ]] ; then
-        echo "   Fresh clean done - now building ..."
-    else
-        echo "   Clean done - All outputs cleaned"
-        exit 0
-    fi
-fi
 
-export AM_CLEANING='no'
-
-export GIT_SHARED_CHECKOUT_QUIET='yes'
 
 function runTestsIfNeeded()
 {
@@ -919,4 +944,49 @@ function runTestsIfNeeded()
         fi
     fi
 }
-main "$@" && runTestsIfNeeded
+
+
+function doRunAll()
+{
+    if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
+        main "$@"
+        if [[ "${orig_build_kind_param:-}" == '--fresh' ]] ; then
+            echo "   Fresh clean done - now building ..."
+        else
+            echo "   Clean done - All outputs cleaned"
+            exit 0
+        fi
+    fi
+
+    export AM_CLEANING='no'
+
+    export GIT_SHARED_CHECKOUT_QUIET='yes'
+
+    main "$@" && runTestsIfNeeded
+}
+
+_amVerifyingInDocker='no'
+if [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] && [[ "${1:-}" == '--with-docker' ]] ; then
+    shift || true
+    _amVerifyingInDocker='yes'
+fi
+
+_fullResult=0
+
+
+doRunAll "$@" || _fullResult="$?"
+
+if [[ "$_amVerifyingInDocker" == 'yes' ]] ; then
+    echo "Process completed in host environment with result: $_fullResult"
+    echo "Verifying that in the docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
+
+    run_cmd=(do-run-in-docker "$VERIFY_ON_BUILD_ENVIRONMENTS" -- "${0}" )
+    for x in "${ORIG_PARAMS[@]}" ; do
+        [[ "$x" == '--with-docker' ]] || run_cmd+=( "$x" )
+    done
+    echo "Running: ${COLOUR[VIVID_BLUE_STDOUT]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_STDOUT]:-}"
+    "${run_cmd[@]}" || _fullResult="$?"
+    echo -e "⚠️  Warning - You may need to remove locally built files with '${COLOUR[VIVID_BLUE_STDOUT]:-}${CMD_AS_DISPLAY} --fresh${COLOUR[OFF_STDOUT]:-}' if there are local build artifacts"
+fi
+
+exit "$_fullResult"

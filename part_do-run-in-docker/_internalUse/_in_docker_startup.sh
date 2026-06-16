@@ -40,6 +40,12 @@ function dumpVersions()
         python3 --version 2>/dev/null
         pip3 --version    2>/dev/null
         protoc --version  2>/dev/null
+
+        for file in "${THIS_DIR%/}/post-"*; do
+            if [ -x "$file" ]; then
+                echo "Processed: $file"
+            fi
+        done
     } | withPrefix "  • "
 }
 
@@ -92,7 +98,12 @@ for file in "${THIS_DIR%/}/post-"*; do
 done
 
 dumpVersions  | withLeftBox
-
+if [[ "$return_value" != 0 ]] ; then
+    echo "⚠️  Command \`${option_cmd_to_run[*]@Q}\` failed."
+else
+    echo "ℹ️  Command \`${option_cmd_to_run[*]@Q}\` ran successfully."
+fi
+echo "Ran: ${option_cmd_to_run[*]} with exit code: $return_value" | withPrefix "  • " >&2
 if [[ "$option_exit" == "--exit=no" ]] || [[ "$option_exit" == "--exit=on-success" && "$return_value" != 0 ]] ; then
     echo "═══════════════════════════════════════════════════════════════════════════"
     echo " Staying in docker image [$option_exit]"

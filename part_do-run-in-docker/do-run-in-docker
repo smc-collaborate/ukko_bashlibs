@@ -20,10 +20,10 @@ function app_help()
     echo "Options:  <docker-images>    : Docker images to use for testing"
     echo "                               (e.g. 'ubuntu:22.04' -or 'ubuntu:22.04,ubuntu:24.04,ubuntu:26.04,ubuntu:latest')"
     echo ""
-    echo ""
-    echo "          --exit=yes         : Always exit after running the command"
-    echo "          --exit=no          : Don't exit automatically after running the command"
-    echo "          --exit=on-success  : Stay in docker if the command fails - otherwise exit   **DEFAULT**"
+    echo "          --exit=<value>     : yes        = Always exit after running the command"
+    echo "                               no         = Don't exit automatically after running the command"
+    echo "                               on-success = Stay in docker if the command fails - otherwise exit"
+    echo "                                            (Default is 'on-success' for a single image, otherwise 'yes')"
     echo ""
     echo "          --keys-dir=<dir>   : The directory containing SSH keys that the container may use"
     echo "                               (Default: ~/.ssh/)"
@@ -38,14 +38,14 @@ function app_help()
     readarray -t _builders < <(find "$ORIG_PWD" -mindepth 1 -maxdepth 1 -type f -executable -name '*do-build*')
 
     for cmd in "${_builders[@]}" ; do
-        echo -e "           ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:22.04,ubuntu:24.04,ubuntu:26.04,ubuntu:latest --apt-get=yes --exit=yes -- ./${cmd##*/} --with-tests${COLOUR[OFF_USED]:-}"
+        echo -e "           ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:22.04,ubuntu:24.04,ubuntu:26.04,ubuntu:latest  -- ./${cmd##*/} --with-tests${COLOUR[OFF_USED]:-}"
     done
 }
 
 function app_load_param_defaults()
 {
     option_docker_images=''
-    option_exit='on-success'
+    option_exit='default'
     option_workspace="$ORIG_PWD"
     option_keys_dir='' ;   [[ -n "${HOME:-}" ]] && option_keys_dir="${HOME%/}/.ssh/"
     option_dry_run=''
@@ -76,7 +76,15 @@ function app_run()
 {
     IFS=',' read -ra docker_images_array <<< "$option_docker_images"
 
-    [[ "${#docker_images_array[@]}" -eq 0 ]] && do_errorExitWithSuggestion "Docker images not specified"
+    [[ "${#docker_images_array[@]}" == 0 ]] && do_errorExitWithSuggestion "Docker images not specified"
+
+    if [[ "$option_exit" == 'default' ]] ; then
+        if [[ "${#docker_images_array[@]}" == 1 ]] ; then
+            option_exit='on-success'
+        else
+            option_exit='yes'
+        fi
+    fi
 
     local results=()
     local overall_result_code=0
@@ -134,8 +142,6 @@ function docker_run()
             echo "cat /etc/os-release"
         } | create_executable_run_script "pre-0001-apt-get-update-and-install-git.sh"
     fi
-
-
 
     docker_params+=("-v" "${tmpdir_for_startup_script%/}/:/startup")
     if [[ -n "${option_keys_dir:-}" ]]; then
