@@ -215,14 +215,12 @@ function load_params()
                 giveStdHelp='yes'
             elif [[ "$arg" == '--colours=no' ]] || [[ "$arg" == '--colours=yes' ]] || [[ "$arg" == '--colours=auto' ]]; then
                 colours_load "${arg#--colours=}"
-            elif [[ "${APP_SELF_INSTALL:-}" == "yes" ]] ; then
-                if [[ "$INSTALLATION_NOTE" == "OK" ]] && [[ "$arg" == "--uninstall" ]] ; then
-                    (sleep 0.5 && rm -f "$THIS_EXE" && echo "Removed $THIS_EXE") &
-                    exit 0
-                elif [[ "$arg" == "--install" ]] ; then # Always permit 'install' even if the app is already installed, as this can be used to fix an installation that is not working (e.g. due to missing copy or missing PATH entry)
-                    do_install_directly
-                    exit 0
-                fi
+            elif [[ "${APP_SELF_INSTALL:-}" == "yes" ]] && [[ "$INSTALLATION_NOTE" == "OK" ]] && [[ "$arg" == "--uninstall" ]] ; then
+                (sleep 0.5 && rm -f "$THIS_EXE" && echo "Removed $THIS_EXE") &
+                exit 0
+            elif [[ "${APP_SELF_INSTALL:-}" == "yes" ]] && [[ "$arg" == "--install" ]] ; then # Always permit 'install' even if the app is already installed, as this can be used to fix an installation that is not working (e.g. due to missing copy or missing PATH entry)
+                do_install_directly "      "
+                exit 0
             elif [[ "$arg" == '--code-help' ]] ; then
                 giveCodeHelp='yes'
             elif [[ "$arg" == "--"*"="* ]] ; then
@@ -271,26 +269,26 @@ function do_with_check()
 }
 
 
-
 function do_install_directly()
 {
+    local prefix="${1:-}"
     if [[ "$INSTALLATION_NOTE" == "OK" ]]; then
-        echo -e "${COLOUR[VIVID_GREEN_STDOUT]:-}✅ $app_name_and_version is already successfully installed to  ${INSTALL_DIR@Q}${COLOUR[OFF_STDOUT]:-}"
+        echo -e "${prefix}${COLOUR[VIVID_GREEN_STDOUT]:-}✅ $app_name_and_version is already successfully installed to  ${INSTALL_DIR@Q}${COLOUR[OFF_STDOUT]:-}"
         return 0
     fi
 
     if [[ "$INSTALLATION_NOTE" == *"[NotCopied]"* ]] ; then
         if ! do_ensure_file_set  "$INSTALL_DIR_WITH_EXE" "$THIS_EXE" ; then
-            echo "❌  Failed to copy $THIS_EXE to $INSTALL_DIR_WITH_EXE"
+            echo -e "${prefix}${COLOUR[VIVID_RED_STDERR]:-}❌  Failed to copy $THIS_EXE to $INSTALL_DIR_WITH_EXE${COLOUR[OFF_STDERR]:-}"
             return 1
         fi
     fi
 
     if [[ "$INSTALLATION_NOTE" == *"[DirNotInPath]"* ]] ; then
-        echo "⚠️  $app_name_and_version installed to ${INSTALL_DIR@Q} but it is NOT in PATH. Please add ${INSTALL_DIR@Q} to your PATH environment variable." >&2
+        echo -e "${prefix}${COLOUR[VIVID_RED_STDERR]:-}⚠️  $app_name_and_version installed to ${INSTALL_DIR@Q} but it is NOT in PATH. Please add ${INSTALL_DIR@Q} to your PATH environment variable.${COLOUR[OFF_STDERR]:-}" >&2
         return 1
     fi
-     echo "✅  $app_name_and_version installed successfully to ${INSTALL_DIR@Q} and is available in PATH"
+     echo -e "${prefix}✅  ${COLOUR[VIVID_BLUE_STDOUT]:-}$app_name_and_version${COLOUR[OFF_STDOUT]:-} installed successfully to ${INSTALL_DIR@Q} and is available in PATH"
 }
 
 

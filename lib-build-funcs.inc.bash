@@ -517,7 +517,7 @@ function installLibIfNeeded()
         do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" --ref="${lib_ver}"
 
         local description
-        if ! description="$(git -C "$dest_dir" describe --always --dirty)" ; then
+        if ! description="$(git -C "$dest_dir" describe --always --dirty  2>/dev/null)" ; then
             echo "   ❌ Invalid git repository at $(displayPath "$dest_dir") for ${git_url}"
             return 1
 
@@ -1011,7 +1011,11 @@ if [[ "${EXPORT_BUILD_TOP_LEVEL_ALREADY_DONE:-}" != 'yes' ]] ; then
     export EXPORT_BUILD_TOP_LEVEL_ALREADY_DONE='yes'
     TIMEFORMAT=$'\n-- Total Time Summary ---\nReal:  %3Rs\nUser:  %3Us\nSys:   %3Ss\nCPU:   %P%%\n----------------------'
     time do_all "$@" || _final_result="$?"
-    [[ -z "${UKKO_BASHLIBS_REF_FORCE:-}" ]] || echo "⚠️  UKKO_BASHLIBS_REF_FORCE=$UKKO_BASHLIBS_REF_FORCE"
+    if [[ -n "${UKKO_BASHLIBS_REF_FORCE:-}" ]] && [[ "${UKKO_BASHLIBS_REF_FORCE:-}" != "${UKKO_BASHLIBS_REF_PREFERRED:-}" ]] ; then
+        echo -n "⚠️  UKKO_BASHLIBS_REF_FORCE=$UKKO_BASHLIBS_REF_FORCE"
+        [[ -n "${UKKO_BASHLIBS_REF_PREFERRED:-}" ]] && echo -n " (Preferred: '${UKKO_BASHLIBS_REF_PREFERRED:-}')"
+        echo ""
+    fi
 else
     do_all "$@" || _final_result="$?"
 fi

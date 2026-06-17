@@ -1,4 +1,3 @@
-echo "⚠️  ℹ️  ❓  Deprecated - use 'lib-build-funcs.inc.bash' instead of 'build-funcs.inc.bash'" >&2
 {
     echo "❓  | Deprecated - use 'lib-build-funcs.inc.bash' instead of 'build-funcs.inc.bash'"
     echo "❓  | Path:"

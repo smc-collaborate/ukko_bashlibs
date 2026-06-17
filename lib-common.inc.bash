@@ -1,11 +1,137 @@
 # shellcheck shell=bash
-################
-#
 #
 # IMPORT THIS AS A 'source' script
 #   source tools/lib-common.inc.bash
 #
 
+##!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#
+# Start Region: Shared between lib-common.inc.bash & single file: git-shared-checkout
+#
+
+##############################################
+#
+# Evaluates git stored in:
+#  * repo_fullDir
+#
+# Loads:
+#  * gitInfo_description
+#  * gitInfo_warning
+#
+# Also evaluates and triggers warnings based on:
+#  * option_ref_type
+#  * option_ref_value
+#
+gitInfo_description=''
+gitInfo_warning=''
+function load_gitInfo()
+{
+    local hash=''
+    local branch=''
+
+    local alwaysGiveBranch="${1:-no}"
+    gitInfo_description=''
+    gitInfo_warning=''
+
+    if [[ ! -d "$repo_fullDir" ]] ; then
+        gitInfo_warning="MISSING"
+        return
+    elif [[ "$option_ref_type" == 'hash-only' ]] ; then
+        gitInfo_description="only:#${option_ref_value}"
+    elif [[ -n "$(find "$repo_fullDir" -maxdepth 0 -empty)" ]] ; then
+        gitInfo_description="<EMPTY>"
+    elif ! hash="$(git -C "$repo_fullDir" describe --always --dirty 2>/dev/null)"; then
+        gitInfo_warning="<INVALID_GIT>"
+    else
+        branch="$(git -C "$repo_fullDir" branch --show-current 2>/dev/null || true)"
+        gitInfo_description="${branch}@${hash}"
+        our_hash="${hash%-dirty}"
+
+        if [[ "$option_ref_type" == "hash" ]] && [[ "${our_hash}" != "$option_ref_value" ]]; then
+            gitInfo_warning="Hash is not the expected value: #$option_ref_value"
+        elif [[ "$option_ref_type" == "branch" ]] && [[ "$branch" != "$option_ref_value" ]]; then
+            gitInfo_warning="Branch is not the expected value: ${option_ref_value:-}"
+        elif [[ "$option_ref_type" == "hash" ]] ; then
+            if [[ "${hash}" == *-dirty ]]; then
+                gitInfo_description="🔓  "
+            else
+                gitInfo_description="🔒  "
+            fi
+        elif [[ "$option_ref_type" == "branch" ]] ; then
+            if [[ "$alwaysGiveBranch" == "yes" ]] ; then
+                gitInfo_description="🔓  ${gitInfo_description}"
+            else
+                gitInfo_description="🔓  @${hash}"
+            fi
+        elif [[ "$option_ref_type" == "tag" ]] ; then
+            tag_hash="$(git -C "$repo_fullDir" rev-list -n 1 "refs/tags/${option_ref_value}" 2>/dev/null || true)"
+            if [[ -z "$tag_hash" ]] ; then
+                gitInfo_warning="Unable to identify tag:${option_ref_value}"
+            elif [[ "${tag_hash}" != "${our_hash}"* ]]; then
+                gitInfo_warning="tag:${option_ref_value}=#${tag_hash:0:7}"
+            else
+                gitInfo_description+="🔓  "
+            fi
+        elif [[ -z "$option_ref_type" ]] ; then
+            gitInfo_description="🔓  ${gitInfo_description}"
+        else
+            gitInfo_description+="🔓  "
+        fi
+        if [[ "$hash" == *-dirty ]] ; then
+            [[ -n "$gitInfo_warning" ]] && gitInfo_warning+=" & "
+            gitInfo_warning+="There are local changes"
+        fi
+    fi
+}
+
+function dump_gitInfoOnDir()
+{
+    local _dir="$1"
+
+    repo_fullDir="$_dir"
+
+    y="${repo_fullDir#"$SHARED_GIT_DIR/"}"
+
+    repo_friendlyName="${y%/*}"
+    repo_friendlyName="${repo_friendlyName/\//:}"
+    _dispDir="${SHARED_GIT_DIR_DISPLAY%/}/$y"
+    _checkoutDirPart="${y##*/}"
+    _repoDirPart="${y%/*}"
+
+    if [[ "$_checkoutDirPart" == "default_branch" ]]; then
+        option_ref_type=""
+        option_ref_value=""
+        _checkoutKindValue=""
+    else
+        option_ref_type="${_checkoutDirPart%%_*}"
+        option_ref_value="${_checkoutDirPart#*_}"
+        _checkoutKindValue="$option_ref_type:$option_ref_value"
+    fi
+
+    # Load:
+    # * gitInfo_description
+    # * gitInfo_warning
+    load_gitInfo 'yes'
+
+    ##########
+    # Summarise
+
+    local repo_caption="$repo_friendlyName"
+    [[ -n $gitInfo_description ]] &&  repo_caption+=" $gitInfo_description"
+    local _dirAsPrinted="$_dispDir"
+
+    [[ -z "$gitInfo_warning"   ]] || gitInfo_warning=" ${COLOUR[VIVID_RED_STDERR]:-}⚠️  $gitInfo_warning${COLOUR[OFF_STDERR]:-}"
+    _checkoutDirPart="${y##*/}"
+    _repoDirPart="${y%/*}"
+    echo -en  " •  ${SHARED_GIT_DIR_DISPLAY%/}/${COLOUR[VIVID_BLUE_STDOUT]:-}${_repoDirPart}${COLOUR[OFF_STDOUT]:-}/${_checkoutDirPart} "
+
+    _maxLen=80
+    _a="${#_repoDirPart}"
+    _b="${#_checkoutDirPart}"
+
+    printf "%-*s" "$((_maxLen - _a - _b - 3))" ""
+    echo -e "${COLOUR[VIVID_BLUE_STDOUT]:-}${gitInfo_description}${COLOUR[OFF_STDOUT]:-}$gitInfo_warning"
+}
 
 function displayPath()
 {
@@ -42,7 +168,7 @@ function displayPath()
     orig="$(realpath "${pathToReview}")"
     result="${orig/#$HOME/\~}"
     relPath="$(realpath --relative-to="${ORIG_PWD%/}/" "${orig}")"
-    [[ "${1:-}" == "--run-path" ]] && [[ "$relPath" != *"/"* ]] && [[ "$relPath" != "./"* ]] &&[[ "$relPath" != "." ]]&& relPath="./${relPath}"
+    [[ "${1:-}" == "--run-path" ]] && [[ "$relPath" != *"/"* ]] && [[ "$relPath" != "./"* ]] && [[ "$relPath" != "." ]] && relPath="./${relPath}"
     [[ "$relPath" != *"${skip_relative_if_contains}"* ]] && [[ "${#result}" -gt  "${#relPath}" ]] && result="$relPath"
         skip_relative_if_contains="${skip_relative_if_contains%/}"
 
@@ -148,38 +274,6 @@ function quoteIfNeeded()
     _quoteIfNeeded "yes" "$@"
 }
 
-function asCsvList()
-{
-    local _first='yes'
-    for arg in "$@" ; do
-        [[ "$_first" == 'yes' ]] || echo -n ", "
-        _first='no'
-        quoteIfNeeded "$arg"
-    done
-}
-
-function asQuotableText()
-{
-    _quoteIfNeeded "no" "$@"
-}
-
-function asQuotedText()
-{
-    echo -n '"'
-    asQuotableText "$@"
-    echo -n '"'
-}
-
-function extraVerboseLogging()
-{
-    true # echo "🛈  $*" >&2
-}
-
-function print_verbose()
-{
-    echo -e "ℹ️  $*" >&2
-}
-
 ##################################################
 #
 # Colours
@@ -261,74 +355,6 @@ colours_load "auto"
 #
 ##################################################################################
 
-if [[ -z "${ORIG_PWD:-}" ]] ; then
-  #|Logging| echo "🛈  Setting ORIG_PWD to [$(pwd)]"
-  export ORIG_PWD ; ORIG_PWD="$(pwd)"
-  extraVerboseLogging "ORIG_PWD                   = [${ORIG_PWD}]"
-#|Logging|else
-#|Logging|  echo "🛈  ORIG_PWD already set to [${ORIG_PWD}]"
-fi
-
-#|x|if [[ -z "${THIS_EXE_FROM_ORIGINAL_PWD:-}" ]] ; then
-#|x|  export THIS_EXE_FROM_ORIGINAL_PWD ;
-#|x|  if [[ $0 == /* ]] ; then
-#|x|    THIS_EXE_FROM_ORIGINAL_PWD="$0"
-#|x|  else
-#|x|    THIS_EXE_FROM_ORIGINAL_PWD="$(relativeToOrigPwd "$0")"
-#|x|    if [[ "${THIS_EXE_FROM_ORIGINAL_PWD}" != *"/"* ]] ; then
-#|x|      THIS_EXE_FROM_ORIGINAL_PWD="./${THIS_EXE_FROM_ORIGINAL_PWD}"
-#|x|    fi
-#|x|  fi
-#|x|  extraVerboseLogging "THIS_EXE_FROM_ORIGINAL_PWD = [${THIS_EXE_FROM_ORIGINAL_PWD}]"
-#|x|fi
-
-if [[ -z "${ORIG_PARAMS:-}" ]] ; then
-  export ORIG_PARAMS ; ORIG_PARAMS=("$@")
-  extraVerboseLogging "ORIG_PARAMS                = [${ORIG_PARAMS[*]}]"
-fi
-
-
-function FATAL_FAILURE_NO_RETURN()
-{
-    local msg="${*##❌}"
-
-    local lines=()
-    local prefix="❌  FATAL FAILURE: "
-
-    msg="$(echo -e "$msg")"
-    readarray -t lines <<< "$msg"
-    for x in "${lines[@]}" ; do
-        echo -e "$prefix$x"
-        prefix='    '
-    done
-    exit 1
-}
-if [[ -z "${THIS_EXE:-}" ]] ; then
-    THIS_EXE="${BASH_SOURCE[-1]}"
-    if [[ "${THIS_EXE}" == '../' ]] || [[ "${THIS_EXE}" == './' ]] ; then
-        THIS_EXE="${ORIG_PWD%/}/${THIS_EXE}"
-    fi
-
-    THIS_EXE="$(realpath -m "${THIS_EXE}")"
-fi
-if [[ -z "${THIS_DIR:-}" ]] ; then
-    _dir="$(dirname "${THIS_EXE}")"
-    [[ -n "${THIS_DIR_REL:-}" ]] && _dir="${_dir%/}/${THIS_DIR_REL%/}"
-    THIS_DIR="$(realpath -m "${_dir}")"
-fi
-# shellcheck disable=SC2034
-UKKO_BASHLIBS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
-THIS_EXE_AS_DISPLAY="$(displayPath "$THIS_EXE")"
-THIS_DIR_AS_DISPLAY="$(displayPath "$THIS_DIR")"
-
-CMD_AS_DISPLAY="$(displayPath "$0" --link-src --run-path)"
-[[ -z "${ORIG_EXE_RUN:-}" ]] && export ORIG_EXE_RUN="${THIS_EXE}"
-[[ -z "${ORIG_EXE_DIR:-}" ]] && export ORIG_EXE_DIR="${THIS_DIR}"
-[[ -z "${ORIG_EXE_RUN_AS_DISPLAY:-}" ]] && export ORIG_EXE_RUN_AS_DISPLAY="${THIS_EXE_AS_DISPLAY}"
-[[ -z "${ORIG_EXE_DIR_AS_DISPLAY:-}" ]] && export ORIG_EXE_DIR_AS_DISPLAY="${THIS_DIR_AS_DISPLAY}"
-[[ -z "${ORIG_EXE_CMD_AS_DISPLAY:-}" ]] && export ORIG_EXE_CMD_AS_DISPLAY="${CMD_AS_DISPLAY}"
-
-
 overallBashResult=0
 function doRun()
 {
@@ -393,7 +419,6 @@ function doRun-groupedOutput()
     echo                   "╰───────────────────────────────────────────────────────────────────────"
     return "$result"
 }
-
 
 function doWithSuccessMsg()
 {
@@ -477,72 +502,116 @@ function do_ensure_file_set()
 }
 
 #
+# End Region: Shared bewteen lib-common.inc.bash & single file: git-shared-checkout
 #
-#
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-##############################################
-#
-# Evalues git stored in:
-#  * repo_fullDir
-#
-# Loads:
-#  * gitInfo_description
-#  * gitInfo_warning
-#
-# Also evaluates and triggers warnings based on:
-#  * option_ref_type
-#  * option_ref_value
-#
-gitInfo_description=''
-gitInfo_warning=''
-function load_gitInfo()
+function asCsvList()
 {
-    local hash=''
-    local branch=''
-
-    local alwaysGiveBranch="${1:-no}"
-    gitInfo_description=''
-    gitInfo_warning=''
-
-    if [[ ! -d "$repo_fullDir" ]] ; then
-        gitInfo_warning="MISSING"
-        return
-    elif [[ "$option_ref_type" == 'hash-only' ]] ; then
-        gitInfo_description="only:#${option_ref_value}"
-    elif ! hash="$(git -C "$repo_fullDir" describe --always --dirty 2>/dev/null)"; then
-        gitInfo_warning="<INVALID_GIT>"
-    else
-        branch="$(git -C "$repo_fullDir" branch --show-current 2>/dev/null || true)"
-        gitInfo_description="${branch}@${hash}"
-
-        if [[ "$option_ref_type" == "hash" ]] && [[ "${hash%-dirty}" != "$option_ref_value" ]]; then
-            gitInfo_warning="Hash is not the expected value: #$option_ref_value"
-        elif [[ "$option_ref_type" == "branch" ]] && [[ "$branch" != "$option_ref_value" ]]; then
-            gitInfo_warning="Branch is not the expected value: ${option_ref_value:-}"
-        else
-            if [[ "$option_ref_type" == "hash" ]] ; then
-            if [[ "${hash}" == *-dirty ]]; then
-                gitInfo_description="🔓  "
-            else
-                gitInfo_description="🔒  "
-            fi
-            elif [[ "$option_ref_type" == "branch" ]] ; then
-                if [[ "$alwaysGiveBranch" == "yes" ]] ; then
-                    gitInfo_description="🔓  ${gitInfo_description}"
-                else
-                    gitInfo_description="🔓  @${hash}"
-                fi
-            elif [[ "$option_ref_type" == "tag" ]] ; then
-                gitInfo_description+="🔓  "
-            elif [[ -z "$option_ref_type" ]] ; then
-                gitInfo_description="🔓  ${gitInfo_description}"
-            else
-                gitInfo_description+="🔓  "
-            fi
-        fi
-        [[ "$hash" != *-dirty ]] || gitInfo_warning="There are local changes"
-    fi
+    local _first='yes'
+    for arg in "$@" ; do
+        [[ "$_first" == 'yes' ]] || echo -n ", "
+        _first='no'
+        quoteIfNeeded "$arg"
+    done
 }
+
+function asQuotableText()
+{
+    _quoteIfNeeded "no" "$@"
+}
+
+function asQuotedText()
+{
+    echo -n '"'
+    asQuotableText "$@"
+    echo -n '"'
+}
+
+function extraVerboseLogging()
+{
+    true # echo "🛈  $*" >&2
+}
+
+function print_verbose()
+{
+    echo -e "ℹ️  $*" >&2
+}
+
+
+if [[ -z "${ORIG_PWD:-}" ]] ; then
+  #|Logging| echo "🛈  Setting ORIG_PWD to [$(pwd)]"
+  export ORIG_PWD ; ORIG_PWD="$(pwd)"
+  extraVerboseLogging "ORIG_PWD                   = [${ORIG_PWD}]"
+#|Logging|else
+#|Logging|  echo "🛈  ORIG_PWD already set to [${ORIG_PWD}]"
+fi
+
+#|x|if [[ -z "${THIS_EXE_FROM_ORIGINAL_PWD:-}" ]] ; then
+#|x|  export THIS_EXE_FROM_ORIGINAL_PWD ;
+#|x|  if [[ $0 == /* ]] ; then
+#|x|    THIS_EXE_FROM_ORIGINAL_PWD="$0"
+#|x|  else
+#|x|    THIS_EXE_FROM_ORIGINAL_PWD="$(relativeToOrigPwd "$0")"
+#|x|    if [[ "${THIS_EXE_FROM_ORIGINAL_PWD}" != *"/"* ]] ; then
+#|x|      THIS_EXE_FROM_ORIGINAL_PWD="./${THIS_EXE_FROM_ORIGINAL_PWD}"
+#|x|    fi
+#|x|  fi
+#|x|  extraVerboseLogging "THIS_EXE_FROM_ORIGINAL_PWD = [${THIS_EXE_FROM_ORIGINAL_PWD}]"
+#|x|fi
+
+if [[ -z "${ORIG_PARAMS:-}" ]] ; then
+  export ORIG_PARAMS ; ORIG_PARAMS=("$@")
+  extraVerboseLogging "ORIG_PARAMS                = [${ORIG_PARAMS[*]}]"
+fi
+
+
+function FATAL_FAILURE_NO_RETURN()
+{
+    local msg="${*##❌}"
+
+    local lines=()
+    local prefix="❌  FATAL FAILURE: "
+
+    msg="$(echo -e "$msg")"
+    readarray -t lines <<< "$msg"
+    for x in "${lines[@]}" ; do
+        echo -e "$prefix$x"
+        prefix='    '
+    done
+    exit 1
+}
+if [[ -z "${THIS_EXE:-}" ]] ; then
+    THIS_EXE="${BASH_SOURCE[-1]}"
+    if [[ "${THIS_EXE}" == '../' ]] || [[ "${THIS_EXE}" == './' ]] ; then
+        THIS_EXE="${ORIG_PWD%/}/${THIS_EXE}"
+    fi
+
+    THIS_EXE="$(realpath -m "${THIS_EXE}")"
+fi
+if [[ -z "${THIS_DIR:-}" ]] ; then
+    _dir="$(dirname "${THIS_EXE}")"
+    [[ -n "${THIS_DIR_REL:-}" ]] && _dir="${_dir%/}/${THIS_DIR_REL%/}"
+    THIS_DIR="$(realpath -m "${_dir}")"
+fi
+# shellcheck disable=SC2034
+UKKO_BASHLIBS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
+THIS_EXE_AS_DISPLAY="$(displayPath "$THIS_EXE")"
+THIS_DIR_AS_DISPLAY="$(displayPath "$THIS_DIR")"
+
+CMD_AS_DISPLAY="$(displayPath "$0" --link-src --run-path)"
+[[ -z "${ORIG_EXE_RUN:-}" ]] && export ORIG_EXE_RUN="${THIS_EXE}"
+[[ -z "${ORIG_EXE_DIR:-}" ]] && export ORIG_EXE_DIR="${THIS_DIR}"
+[[ -z "${ORIG_EXE_RUN_AS_DISPLAY:-}" ]] && export ORIG_EXE_RUN_AS_DISPLAY="${THIS_EXE_AS_DISPLAY}"
+[[ -z "${ORIG_EXE_DIR_AS_DISPLAY:-}" ]] && export ORIG_EXE_DIR_AS_DISPLAY="${THIS_DIR_AS_DISPLAY}"
+[[ -z "${ORIG_EXE_CMD_AS_DISPLAY:-}" ]] && export ORIG_EXE_CMD_AS_DISPLAY="${CMD_AS_DISPLAY}"
+
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+#
+#
+#
 
 function dump_sharedCheckout_gitInfoOnDir()
 {

@@ -20,6 +20,8 @@ else
     SHARED_GIT_DIR_DISPLAY='~/gits-shared'
 fi
 
+echo "git-shared-checkout: [$*]" >&2
+
 APP_VERSION="v0.0.5f"
 APP_SELF_INSTALL='yes'
 function app_help()
@@ -186,7 +188,7 @@ function app_run()
     gitInfo_description=""
     gitInfo_warning=''
     if [[ ! -d "$repo_fullDir" ]] ; then
-        gitInfo_description="EMPTY"
+        gitInfo_description="MISSING"
     elif [[ "$option_is_reload" == "yes" ]] || [[ "$option_is_erase" == "yes" ]] ; then
         do_with_check  rm -rf "$repo_fullDir"
         gitInfo_description="ERASED"
@@ -220,8 +222,11 @@ function app_run()
         return 0
     fi
 
-    if [[ "$gitInfo_warning" == "<INVALID_GIT>" ]]; then
-        giveWarning "$repo_friendlyName: $gitInfo_description -- Clearing"
+    if [[ "$gitInfo_warning" == "<INVALID_GIT>" ]] ; then
+        giveWarning "$repo_friendlyName: $gitInfo_description -- Removing"
+        do_with_check rm -rf "$repo_fullDir"
+    elif  [[ "$gitInfo_description" == "<EMPTY>" ]]; then
+        echo -e "$repo_friendlyName: ${COLOUR[VIVID_BLUE_STDERR]:-}ℹ️  $gitInfo_description${COLOUR[OFF_STDERR]:-} -- Removing" >&2
         do_with_check rm -rf "$repo_fullDir"
     fi
 
@@ -320,54 +325,7 @@ function getDirs()
     find "$baseDir" -mindepth 1 -maxdepth 1 -type d | sed --unbuffered "s|^${baseDir%/}/||g"
 }
 
-function dump_gitInfoOnDir()
-{
-    local _dir="$1"
 
-    repo_fullDir="$_dir"
-
-    y="${repo_fullDir#"$SHARED_GIT_DIR/"}"
-
-    repo_friendlyName="${y%/*}"
-    repo_friendlyName="${repo_friendlyName/\//:}"
-    _dispDir="${SHARED_GIT_DIR_DISPLAY%/}/$y"
-    _checkoutDirPart="${y##*/}"
-    _repoDirPart="${y%/*}"
-
-    if [[ "$_checkoutDirPart" == "default_branch" ]]; then
-        option_ref_type=""
-        option_ref_value=""
-        _checkoutKindValue=""
-    else
-        option_ref_type="${_checkoutDirPart%%_*}"
-        option_ref_value="${_checkoutDirPart#*_}"
-        _checkoutKindValue="$option_ref_type:$option_ref_value"
-    fi
-
-    # Load:
-    # * gitInfo_description
-    # * gitInfo_warning
-    load_gitInfo 'yes'
-
-    ##########
-    # SUmmarise
-
-    local repo_caption="$repo_friendlyName"
-    [[ -n $gitInfo_description ]] &&  repo_caption+=" $gitInfo_description"
-    local _dirAsPrinted="$_dispDir"
-
-    [[ -z "$gitInfo_warning"   ]] || gitInfo_warning=" ${COLOUR[VIVID_RED_STDERR]:-}⚠️  $gitInfo_warning${COLOUR[OFF_STDERR]:-}"
-    _checkoutDirPart="${y##*/}"
-    _repoDirPart="${y%/*}"
-    echo -en  " •  ${SHARED_GIT_DIR_DISPLAY%/}/${COLOUR[VIVID_BLUE_STDOUT]:-}${_repoDirPart}${COLOUR[OFF_STDOUT]:-}/${_checkoutDirPart} "
-
-    _maxLen=80
-    _a="${#_repoDirPart}"
-    _b="${#_checkoutDirPart}"
-
-    printf "%-*s" "$((_maxLen - _a - _b - 3))" ""
-    echo -e "${COLOUR[VIVID_BLUE_STDOUT]:-}${gitInfo_description}${COLOUR[OFF_STDOUT]:-}$gitInfo_warning"
-}
 function doListSharedCheckouts()
 {
 
@@ -379,11 +337,14 @@ function doListSharedCheckouts()
 
 }
 
-
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#
+# Start Region: Shared between lib-common.inc.bash & single file: git-shared-checkout
+#
 
 ##############################################
 #
-# Evalues git stored in:
+# Evaluates git stored in:
 #  * repo_fullDir
 #
 # Loads:
@@ -456,11 +417,54 @@ function load_gitInfo()
     fi
 }
 
+function dump_gitInfoOnDir()
+{
+    local _dir="$1"
 
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#
-# Imported from lib-common.inc.bash
-#
+    repo_fullDir="$_dir"
+
+    y="${repo_fullDir#"$SHARED_GIT_DIR/"}"
+
+    repo_friendlyName="${y%/*}"
+    repo_friendlyName="${repo_friendlyName/\//:}"
+    _dispDir="${SHARED_GIT_DIR_DISPLAY%/}/$y"
+    _checkoutDirPart="${y##*/}"
+    _repoDirPart="${y%/*}"
+
+    if [[ "$_checkoutDirPart" == "default_branch" ]]; then
+        option_ref_type=""
+        option_ref_value=""
+        _checkoutKindValue=""
+    else
+        option_ref_type="${_checkoutDirPart%%_*}"
+        option_ref_value="${_checkoutDirPart#*_}"
+        _checkoutKindValue="$option_ref_type:$option_ref_value"
+    fi
+
+    # Load:
+    # * gitInfo_description
+    # * gitInfo_warning
+    load_gitInfo 'yes'
+
+    ##########
+    # Summarise
+
+    local repo_caption="$repo_friendlyName"
+    [[ -n $gitInfo_description ]] &&  repo_caption+=" $gitInfo_description"
+    local _dirAsPrinted="$_dispDir"
+
+    [[ -z "$gitInfo_warning"   ]] || gitInfo_warning=" ${COLOUR[VIVID_RED_STDERR]:-}⚠️  $gitInfo_warning${COLOUR[OFF_STDERR]:-}"
+    _checkoutDirPart="${y##*/}"
+    _repoDirPart="${y%/*}"
+    echo -en  " •  ${SHARED_GIT_DIR_DISPLAY%/}/${COLOUR[VIVID_BLUE_STDOUT]:-}${_repoDirPart}${COLOUR[OFF_STDOUT]:-}/${_checkoutDirPart} "
+
+    _maxLen=80
+    _a="${#_repoDirPart}"
+    _b="${#_checkoutDirPart}"
+
+    printf "%-*s" "$((_maxLen - _a - _b - 3))" ""
+    echo -e "${COLOUR[VIVID_BLUE_STDOUT]:-}${gitInfo_description}${COLOUR[OFF_STDOUT]:-}$gitInfo_warning"
+}
 
 function displayPath()
 {
@@ -539,6 +543,13 @@ function displayPath()
 }
 
 
+
+function relativeToOrigPwd()
+{
+  realpath --relative-to="${ORIG_PWD%/}/" "${1}"
+}
+
+
 function _quoteIfNeeded()
 {
     local permitDoubleQuoting="${1}"
@@ -595,10 +606,6 @@ function quoteIfNeeded()
 {
     _quoteIfNeeded "yes" "$@"
 }
-
-THIS_EXE="$(readlink -m "${BASH_SOURCE[0]}")"
-ORIG_PWD="$(pwd)"
-CMD_AS_DISPLAY="$(displayPath "$0" --link-src --run-path)"
 
 ##################################################
 #
@@ -678,6 +685,8 @@ function colours_load()
 
 colours_load "auto"
 
+#
+##################################################################################
 
 overallBashResult=0
 function doRun()
@@ -825,8 +834,14 @@ function do_ensure_file_set()
     return 0
 }
 
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#
+# End Region: Shared bewteen lib-common.inc.bash & single file: git-shared-checkout
+#
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+THIS_EXE="$(readlink -m "${BASH_SOURCE[0]}")"
+ORIG_PWD="$(pwd)"
+CMD_AS_DISPLAY="$(displayPath "$0" --link-src --run-path)"
 
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #
@@ -1111,7 +1126,6 @@ function do_install_directly()
     fi
      echo -e "${prefix}✅  ${COLOUR[VIVID_BLUE_STDOUT]:-}$app_name_and_version${COLOUR[OFF_STDOUT]:-} installed successfully to ${INSTALL_DIR@Q} and is available in PATH"
 }
-
 
 
 hadWarning='no'
