@@ -1,10 +1,12 @@
 # shellcheck shell=bash
+################
+#
 #
 # IMPORT THIS AS A 'source' script
 #   source tools/lib-common.inc.bash
 #
 
-##!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#=!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #
 # Start Region: Shared between lib-common.inc.bash & single file: git-shared-checkout
 #
