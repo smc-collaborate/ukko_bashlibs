@@ -2,7 +2,7 @@
 BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 source "${BUILD_FUNCS_DIR%/}/lib-common.inc.bash"
 
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#==============================================================================================
 #
 # This is a standard template for bash scripts that uses:
 #  * APP_VERSION     | Optional but recommended
