@@ -1,7 +1,7 @@
 # shellcheck disable=all
 # source this file - not a script to run directly
 {
-    echo "❓  | Deprecated - use 'lib-test-funcs.inc.bash' instead of 'utils.inc.bash'"
+    echo "❓  | Deprecated - use 'lib-testing.inc.bash' instead of 'utils.inc.bash'"
     echo "❓  | Path:"
     for x in "${BASH_SOURCE[@]}" ; do
         echo "❓  |   - $x"

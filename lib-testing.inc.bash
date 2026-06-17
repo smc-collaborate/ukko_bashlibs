@@ -3,7 +3,7 @@
 #
 #
 # IMPORT THIS AS A 'source' script
-#   source ukko_bashlibs/lib-test-funcs.inc.bash
+#   source ukko_bashlibs/lib-testing.inc.bash
 #
 #
 # Example usage:
@@ -35,8 +35,8 @@
 #| │  }
 #| │
 #| │ BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/../ukko_bashlibs/"
-#| │ # shellcheck source=../ukko_bashlibs/lib-test-funcs.inc.bash
-#| │ source "${BUILD_FUNCS_DIR%/}/lib-test-funcs.inc.bash"
+#| │ # shellcheck source=../ukko_bashlibs/lib-testing.inc.bash
+#| │ source "${BUILD_FUNCS_DIR%/}/lib-testing.inc.bash"
 #| ╰─────────────────────────────────────────────────────────
 ############################
 

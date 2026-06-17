@@ -135,6 +135,21 @@ function dump_gitInfoOnDir()
     echo -e "${COLOUR[VIVID_BLUE_STDOUT]:-}${gitInfo_description}${COLOUR[OFF_STDOUT]:-}$gitInfo_warning"
 }
 
+function displayPathList()
+{
+    local result=''
+    local value
+
+    for value in "$@" ; do
+        [[ -z "$result" ]] || result+=','
+        x="$(quoteIfNeeded "$(displayPath "$value")")"
+        result+="$x"
+    done
+
+    [[ "$#" == 1 ]] || result="[$result]"
+    echo -n "$result"
+}
+
 function displayPath()
 {
     local fname_in="$1"
@@ -478,6 +493,26 @@ function do_ensure_link()
     return 0
 }
 
+function forceDelete()
+{
+    local result='0'
+    local prefix="${1:-}"
+    while IFS= read -r target; do
+        if [[ -e "$target" ]] ; then
+
+            rm -rf "$target" &>/dev/null || true
+            if [[ ! -e "$target" ]] ; then
+                echo "✓ Deleted $target "
+            elif [[ "$(id -u)" -ne 0 ]] && sudoIfNeeded rm -rf "$target" ; then
+                echo "✓ Deleted $target (with sudo)"
+            else
+                echo "✗ Failed to delete '$target'"
+                result=1
+            fi
+        fi
+    done
+    return $result
+}
 function do_ensure_file_set()
 {
     local dest_fname="$1"
@@ -591,11 +626,13 @@ if [[ -z "${THIS_EXE:-}" ]] ; then
 
     THIS_EXE="$(realpath -m "${THIS_EXE}")"
 fi
+echo "⚠️  ⚠️  ⚠️  !! THIS_DIR=${THIS_DIR:-<not set>}"
 if [[ -z "${THIS_DIR:-}" ]] ; then
     _dir="$(dirname "${THIS_EXE}")"
     [[ -n "${THIS_DIR_REL:-}" ]] && _dir="${_dir%/}/${THIS_DIR_REL%/}"
     THIS_DIR="$(realpath -m "${_dir}")"
 fi
+echo "⚠️  ⚠️  ⚠️  !! THIS_DIR=${THIS_DIR:-<not set>}" >&2
 # shellcheck disable=SC2034
 UKKO_BASHLIBS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 THIS_EXE_AS_DISPLAY="$(displayPath "$THIS_EXE")"

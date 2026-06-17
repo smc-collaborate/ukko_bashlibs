@@ -5,6 +5,7 @@
 
 * **[do-run-in-docker ⧉](part_do-run-in-docker/readme.md)**
 * **[git-shared-checkout ⧉](part_git-shared-checkout/readme.md)**
+* **[Building and Installing your project ⧉](part_installer/readme.md)**
 
 
 ## Style ##

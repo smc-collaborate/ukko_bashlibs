@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
- set -eu
- APP_VERSION="1.0.0"
- APP_DESCRIPTION="This app says 'hello'"
+# shellcheck disable=SC2034
+set -eu
+APP_VERSION="1.0.0"
+APP_DESCRIPTION="This app says 'hello'"
 
 function app_help()
 {
@@ -16,7 +17,7 @@ function app_load_param_defaults()
 
 function app_load_param_option_name_value()
 {
-    [[ "$1" == '--person' ]] && option_person="$2" && return 0
+    [[ "$1" == '--person=' ]] && option_person="$2" && return 0
 
     return 1
 }
@@ -27,5 +28,5 @@ function app_run()
     echo "This is some more output"
     echo -e "Hidden coding help is available with: ${COLOUR[VIVID_BLUE_STDOUT]:-}$CMD_AS_DISPLAY --code-help${COLOUR[OFF_STDOUT]:-}"
 }
-# shellcheck disable=SC1091
-source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/../lib-app.inc.bash"
+# shellcheck source=/dev/null
+source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/libs/shim-lib-app.inc.bash"

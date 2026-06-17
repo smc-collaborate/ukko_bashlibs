@@ -165,7 +165,53 @@ function do_exitWithHelp()
         exit 0
     fi
 }
+function do_withOptionalTiming()
+{
+    local with_timing="$1"
+    shift 1
+    local result=0
 
+    if [[ "${with_timing:-}" == 'yes' ]]; then
+        TIMEFORMAT=$'\n-- Total Time Summary ---\nReal:  %3Rs\nUser:  %3Us\nSys:   %3Ss\nCPU:   %P%%\n----------------------'
+        time "$@" || result="$?"
+    else
+        "$@" || result="$?"
+    fi
+
+    return "$result"
+}
+
+function bashlibs_warn_on_version_if_needed()
+{
+    if [[ -n "${UKKO_BASHLIBS_REF_FORCE:-}" ]] && [[ "${UKKO_BASHLIBS_REF_FORCE:-}" != "${UKKO_BASHLIBS_REF_PREFERRED:-}" ]] ; then
+        echo -n "⚠️  UKKO_BASHLIBS_REF_FORCE=$UKKO_BASHLIBS_REF_FORCE"
+        [[ -n "${UKKO_BASHLIBS_REF_PREFERRED:-}" ]] && echo -n " (Preferred: '${UKKO_BASHLIBS_REF_PREFERRED:-}')"
+        echo ""
+    fi
+}
+
+
+
+function param_choose_from_list()
+{
+    local selected_name="$1"
+    local name="$2"
+    local value="$3"
+    shift 3 || true
+
+    [[ "$name" == "$selected_name" ]] || return 1
+    app_load_param_validate_from_list "$name" "$value" "$@"
+}
+
+function param_choose_yes_no()
+{
+    local selected_name="$1"
+    local name="$2"
+    local value="$3"
+
+    [[ "$name" == "$selected_name" ]] || return 1
+    app_load_param_validate_from_list "$name" "$value" "yes" "no"
+}
 
 function app_load_param_validate_from_list()
 {
@@ -178,7 +224,12 @@ function app_load_param_validate_from_list()
     for arg in "$@"; do
         [[ "$arg" == "$value" ]] && return 0
     done
-    do_errorExitWithSuggestion "Invalid value for ${name}<value>.  <value> is ${value@Q}, but expected one of [$(asCsvList "$@")]"
+
+    if [[ "$#" == 1 ]]; then
+        do_errorExitWithSuggestion "Invalid value for $name<value>.  Expected: ${1@Q}, but got ${value@Q}"
+    else
+        do_errorExitWithSuggestion "Invalid value for ${name}<value>.  <value> is ${value@Q}, but expected one of [$(asCsvList "$@")]"
+    fi
 }
 
 function load_params()
