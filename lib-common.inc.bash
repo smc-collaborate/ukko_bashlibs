@@ -626,13 +626,11 @@ if [[ -z "${THIS_EXE:-}" ]] ; then
 
     THIS_EXE="$(realpath -m "${THIS_EXE}")"
 fi
-echo "⚠️  ⚠️  ⚠️  !! THIS_DIR=${THIS_DIR:-<not set>}"
 if [[ -z "${THIS_DIR:-}" ]] ; then
     _dir="$(dirname "${THIS_EXE}")"
     [[ -n "${THIS_DIR_REL:-}" ]] && _dir="${_dir%/}/${THIS_DIR_REL%/}"
     THIS_DIR="$(realpath -m "${_dir}")"
 fi
-echo "⚠️  ⚠️  ⚠️  !! THIS_DIR=${THIS_DIR:-<not set>}" >&2
 # shellcheck disable=SC2034
 UKKO_BASHLIBS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 THIS_EXE_AS_DISPLAY="$(displayPath "$THIS_EXE")"

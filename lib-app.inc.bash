@@ -192,25 +192,76 @@ function bashlibs_warn_on_version_if_needed()
 
 
 
+# Return with no argument if name starts with '!'
+#
+# param_choose_from_list "exit" "$1" "$2" fred mary tom
+# ---------------|-----------------------|--------------
+#  selected_name | Params $1,$2          | Result
+# ---------------|-----------------------|--------------
+#   value        | --value= fred           -> true
+#   value        | --value= mary           -> true
+#   value        | --value= tom            -> true
+#  !value        | --value= fred           -> true
+#  !value        | --value= mary           -> true
+#  !value        | --value= tom            -> true
+# ---------------|-----------------------|--------------
+#   value        | --value                 ->      FALSE
+#  !value        | --value                 -> true
+# ---------------|-----------------------|--------------
+#   value        | --value= other          ->      FALSE
+#  !value        | --value= other          ->      FALSE
+#   value        | --value=                ->      FALSE
+#  !value        | --value=                ->      FALSE
+# ---------------|-----------------------|--------------
 function param_choose_from_list()
 {
-    local selected_name="$1"
-    local name="$2"
-    local value="$3"
+    local name_for_comparison="$1"
+    local decorated_name_passed="$2"
+    local value_passed="$3"
+
+    echo "ℹ️  param_choose_from_list($*)" >&2
+    if [[ "$name_for_comparison" == '--'* ]] ; then
+        echo -e "⚠️  Deprecated - param_choose_####() 'name' rather than '--name='" >&2
+        name_for_comparison="${name_for_comparison#--}"
+        name_for_comparison="${name_for_comparison%=}"
+    fi
+
+    if [[ "${name_for_comparison}" == '!'* ]] ; then
+        name_for_comparison="${name_for_comparison#'!'}"
+        # Accept default if the name is passed without '=value' (e.g. '--exit' rather than '--exit=yes' or '--exit=no')
+        [[ "$decorated_name_passed" == "--${name_for_comparison}" ]] && return 0
+    fi
+
+    [[ "$decorated_name_passed" == "--${name_for_comparison}=" ]] || return 1
+
+
     shift 3 || true
 
-    [[ "$name" == "$selected_name" ]] || return 1
-    app_load_param_validate_from_list "$name" "$value" "$@"
+    app_load_param_validate_from_list "--${name_for_comparison}=" "${value_passed}" "$@"
 }
 
+# Return with no argument if name starts with '!'
+#
+# param_choose_yes_no "exit" "$1" "$2"
+# ---------------|-----------------------|--------------
+#  selected_name | Params $1,$2          | Result
+# ---------------|-----------------------|--------------
+#   exit         | --exit= yes             -> true
+#   exit         | --exit= no              -> true
+#  !exit         | --exit= yes             -> true
+#  !exit         | --exit= no              -> true
+# ---------------|-----------------------|--------------
+#   exit         | --exit                  ->      FALSE
+#  !exit         | --exit                  -> true
+# ---------------|-----------------------|--------------
+#   exit         | --exit= other           ->      FALSE
+#  !exit         | --exit= other           ->      FALSE
+#   exit         | --exit=                 ->      FALSE
+#  !exit         | --exit=                 ->      FALSE
+# ---------------|-----------------------|--------------
 function param_choose_yes_no()
 {
-    local selected_name="$1"
-    local name="$2"
-    local value="$3"
-
-    [[ "$name" == "$selected_name" ]] || return 1
-    app_load_param_validate_from_list "$name" "$value" "yes" "no"
+    param_choose_from_list "$@" "yes" "no"
 }
 
 function app_load_param_validate_from_list()
@@ -219,7 +270,7 @@ function app_load_param_validate_from_list()
     local value="$2"
 
     shift 2 || true
-    #echo "ℹ️  Validating value for $name$value against expected values: [$(asCsvList "$@")]"
+    echo "ℹ️  app_load_param_validate_from_list[$name,$value]: ($*) : Validating value for $name$value against expected values: [$(asCsvList "$@")]" >&2
 
     for arg in "$@"; do
         [[ "$arg" == "$value" ]] && return 0

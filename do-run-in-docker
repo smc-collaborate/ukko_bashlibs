@@ -64,9 +64,9 @@ function app_load_param_option_name_value()
     [[ "$1" == '--docker-image=' ]] && option_docker_image="$2" && return 0
     [[ "$1" == '--workspace='    ]] && option_workspace="$2"    && return 0
     [[ "$1" == '--keys-dir='     ]] && option_keys_dir="$2"     && return 0
-    param_choose_from_list "--exit=" "$1" "$2" yes no on-success && option_exit="$2" && return 0
+    param_choose_from_list "exit" "$1" "$2" yes no on-success && option_exit="$2" && return 0
     [[ "$1" == '--dry-run'       ]] && option_dry_run='yes'     && return 0
-    param_choose_from_yes_no "--apt-get=" "$1" "$2" && option_apt_get="$2" && return 0
+    param_choose_from_yes_no "apt-get" "$1" "$2" && option_apt_get="$2" && return 0
     return 1
 }
 

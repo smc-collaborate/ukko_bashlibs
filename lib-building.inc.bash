@@ -53,14 +53,14 @@ BUILD_PARAMS=("$@")
 function app_help()
 {
     if [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] ; then
-        _msg1=" [--with-docker]"
-        _msg2="   --with-docker: Additionally re-run the build/test process in the docker containers: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
+        _msg1=" [--with-docker[=dry-run]]"
+        _msg2="   --with-docker[=dry-run]: Additionally re-run the build/test process in the docker containers: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
     else
         _msg1=""
         _msg2=""
     fi
 
-    echo "Usage: ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} [--clean | --fresh] [--with-tests]${_msg1} [other params for build functions ...]${COLOUR[OFF_USED]:-}"
+    echo "Usage: ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} [--clean | --fresh] [--with-tests]${_msg1} -- [other params for build functions ...]${COLOUR[OFF_USED]:-}"
     echo ""
     echo "   --with-tests : Run tests after building"
     [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] && echo "${_msg2}"
@@ -74,8 +74,9 @@ function app_help()
     echo "   --fresh      : Clean all outputs and then build (same as --clean followed by normal execution)"
     echo "   --remove     : Alias of --clean"
     echo "   --uninstall  : Alias of --clean"
-#    echo ""
-#    echo "Other parameters are passed to the build functions (e.g., apps_doBuildOrClean) and can be used to customize the build process.  For example, you could use '--only=source_generate' to only generate sources without building applications or setting up virtual environments."
+    echo ""
+    echo "Any additional parameters passed after '--' are passed to the build functions"
+    echo " eg: apps_doBuildOrClean and can be used to customize the build process"
 }
 
 function app_load_param_defaults()
@@ -90,14 +91,20 @@ function app_load_param_defaults()
     option_stats='no'
     option_precommit='yes'
     option_only=''
+
+    option_direct_values=()
 }
 
-
+function app_load_param_direct_value()
+{
+    option_direct_values+=("$1")
+    return 0
+}
 
 function app_load_param_option_name_value()
 {
     if [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] ; then
-        [[ "$1" == '--with-docker' ]] && option_amVerifyingInDocker='yes' && return 0
+        param_choose_from_list "!with-docker" "$1" "$2" "dry-run" "yes" "no" && option_amVerifyingInDocker="${2:-yes}" && return 0
     fi
     [[ "$1" == '--with-tests' ]] && export RUN_TESTS='yes' && return 0
     [[ "$1" == '--clean'      ]] && orig_build_kind_param="$1" && return 0
@@ -105,7 +112,7 @@ function app_load_param_option_name_value()
     [[ "$1" == '--remove'     ]] && orig_build_kind_param="$1" && return 0
     [[ "$1" == '--uninstall'  ]] && orig_build_kind_param="$1" && return 0
 
-    [[ "$1" == '--show-stats'  ]] && option_stats='yes' && return 0
+    [[ "$1" == '--stats'  ]] && option_stats='yes' && return 0
 
     [[ "$1" == '--no-precommit'  ]] && option_precommit='no' && return 0
     param_choose_from_list "--only=" "$1" "$2" "source_generate" && option_only="$2" && return 0
@@ -118,8 +125,6 @@ function app_run()
 {
     local _final_result=0
     local _show_final_summary='no'
-
-
 
     if [[ "${EXPORT_BUILD_TOP_LEVEL_ALREADY_DONE:-}" != 'yes' ]] ; then
         export EXPORT_BUILD_TOP_LEVEL_ALREADY_DONE='yes'
@@ -139,13 +144,19 @@ function do_completeBuildAndTesting()
 {
     local _fullResult=0
     local _doBuild='yes'
-
+    local msg_suffix=''
     #
     # Step 1 - Clean  first ?
     #
     if [[ "$orig_build_kind_param" == '--clean' ]] || [[ "$orig_build_kind_param" == '--remove' ]] || [[ "$orig_build_kind_param" == '--uninstall' ]] ; then
         doActions "AM_CLEANING=yes" || _fullResult="$?"
-        [[ "${_fullResult}" == 0 ]] && echo "   Clean done - All outputs cleaned"
+
+        if [[ -L "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" ]] ; then
+            msg_suffix+="\n   Also removed link at $(displayPath "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT}" --link-src )"
+            do_remove_link "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" || _fullResult="$?"
+        fi
+        [[ "${_fullResult}" == 0 ]] && echo "   Clean done - All outputs cleaned${msg_suffix}"
+
         _doBuild='no'
     elif [[ "$orig_build_kind_param" == '--fresh' ]] ; then
         doActions "AM_CLEANING=yes" || _fullResult="$?"
@@ -171,24 +182,25 @@ function do_completeBuildAndTesting()
     # Step 4 - Repeat in docker if requestedd
     #
 
-    if [[ "$option_amVerifyingInDocker" == 'yes' ]] ; then
+    if [[ "$option_amVerifyingInDocker" != 'no' ]] ; then
         if [[ "$_fullResult" != 0 ]] ; then
             echo "Process failed in host environment with result: $_fullResult"
             echo "Not running in docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
         else
-            echo "Process completed in host environment with successresult: $_fullResult"
+            echo "Process completed in host environment with success"
             echo "Verifying that in the docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
 
-            run_cmd=(do-run-in-docker "$VERIFY_ON_BUILD_ENVIRONMENTS" -- "${0}" )
+            run_cmd=(do-run-in-docker "$VERIFY_ON_BUILD_ENVIRONMENTS")
+            [[ "$option_amVerifyingInDocker" == 'dry-run' ]] && run_cmd+=(--dry-run)
+            run_cmd+=(-- "${0}")
             for x in "${BUILD_PARAMS[@]}" ; do
-                [[ "$x" == '--with-docker' ]] || run_cmd+=( "$x" )
+                [[ "$x" == '--with-docker'* ]] || run_cmd+=( "$x" )
             done
-            echo "Running: ${COLOUR[VIVID_BLUE_USED]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_USED]:-}"
+            echo -e "Running: ${COLOUR[VIVID_BLUE_USED]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_USED]:-}"
             "${run_cmd[@]}" || _fullResult="$?"
             echo -e "⚠️  Warning - You may need to remove locally built files with '${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} --fresh${COLOUR[OFF_USED]:-}' if there are local build artifacts"
         fi
     fi
-
 
     return "$_fullResult"
 }
