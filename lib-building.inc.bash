@@ -60,7 +60,7 @@ function app_help()
         _msg2=""
     fi
 
-    echo "Usage: ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} [--clean | --fresh] [--with-tests]${_msg1} -- [other params for build functions ...]${COLOUR[OFF_USED]:-}"
+    echo "Usage: ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} [--remove | --fresh] [--with-tests]${_msg1} -- [other params for build functions ...]${COLOUR[OFF_USED]:-}"
     echo ""
     echo "   --with-tests : Run tests after building"
     [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] && echo "${_msg2}"
@@ -198,7 +198,7 @@ function do_completeBuildAndTesting()
             done
             echo -e "Running: ${COLOUR[VIVID_BLUE_USED]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_USED]:-}"
             "${run_cmd[@]}" || _fullResult="$?"
-            echo -e "⚠️  Warning - You may need to remove locally built files with '${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} --fresh${COLOUR[OFF_USED]:-}' if there are local build artifacts"
+            echo -e "⚠️  Warning - You may need to remove locally built files with '${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} --clean${COLOUR[OFF_USED]:-}' if there are local build artifacts"
         fi
     fi
 

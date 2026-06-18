@@ -47,9 +47,9 @@ UKKO_BASHLIBS_REF_PREFERRED=branch:docker_multi
 
 function ukkoLibInstall()
 {
-    UKKO_BASHLIBS_LOCAL_DIR="${LIBS_DIR%/}/ukko_bashlibs"
+    UKKO_BASHLIBS_LOCAL_DIR_DEFAULT="${LIBS_DIR%/}/ukko_bashlibs"
+    UKKO_BASHLIBS_LOCAL_DIR="$UKKO_BASHLIBS_LOCAL_DIR_DEFAULT"
     if [[ -d "${UKKO_BASHLIBS_LOCAL_DIR}" ]] ; then
-
         #
         # Method 1 - 'ukko_bashlibs' is already mapped
         #
