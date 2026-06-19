@@ -1,5 +1,6 @@
-#!/bin/bash -eu
-
+#!/bin/env bash
+# shellcheck disable=SC2317
+set -eu
 PROJ_DIR_REL="../"
 
 function apps_doInstallOrClean()

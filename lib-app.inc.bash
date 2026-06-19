@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2317
 
 BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 source "${BUILD_FUNCS_DIR%/}/lib-common.inc.bash"
@@ -577,14 +579,24 @@ function app_dumpInfo()
 
 function app_contentsFull()
 {
-    load_params "$@"
-    [[ "${FULL_VERBOSITY:-}" == 'yes' ]] && app_dumpInfo "ℹ️  Summarising parameters and environment:  \$FULL_VERBOSITY=${FULL_VERBOSITY@Q}"
+    local value=0
+    {
+        local _runValue=0
+        load_params "$@" || _runValue="$?"
+        [[ "${FULL_VERBOSITY:-}" == 'yes' ]] && app_dumpInfo "ℹ️  Summarising parameters and environment:  \$FULL_VERBOSITY=${FULL_VERBOSITY@Q}"
 
-    app_run "$@"
+        app_run "$@" || _runValue="$?"
+
+        return "$_runValue"
+    } || value=0
+
+    return "$value"
 }
 
 
 source "${BUILD_FUNCS_DIR%/}/_internalUse/lib-wrapping.inc.bash"
 declare -F app_init  &> /dev/null  && app_init   # Must be outside of the 'full' as it sets up things for the tree ..
 
-doRunWithWrapping app_contentsFull "$@"
+_xxa=0
+doRunWithWrapping app_contentsFull "$@" || _xxa=$?
+exit "$_xxa"

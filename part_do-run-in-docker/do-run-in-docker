@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2317
+
 set -eu
 ############################################################
 # This is basically equivalent to:
@@ -94,13 +96,13 @@ function app_run()
         echo "Running image[$index]: $img"
         local this_result=0
         docker_run "$img" || this_result="$?"
-
+        local _msg
         if [[ "${option_dry_run:-}" == 'yes' ]] ; then
-            _msg="ℹ️  Docker dry-run       : $(quoteIfNeeded "${docker_params[@]}")"
+            _msg="ℹ️  Docker[$img] dry-run       : $(quoteIfNeeded "${docker_params[@]}")"
         elif [[ "$this_result" == 0 ]]; then
-            _msg="✅  Docker run succeeded : $img" "$(displayPath "$option_workspace")" "$(quoteIfNeeded "${local_cmd_to_run[@]}")"
+            _msg="✅  Docker[$img] run succeeded : [workspace=$(displayPath "$option_workspace")] $(quoteIfNeeded "${local_cmd_to_run[@]}")"
         else
-            _msg="❌  Docker run failed    : $(quoteIfNeeded "${docker_params[@]}")"
+            _msg="❌  Docker[$img] run failed    : $(quoteIfNeeded "${docker_params[@]}")"
             [[ "$this_result" != 1 ]] && _msg+="  [Exit code: $this_result]"
         fi
 
@@ -178,6 +180,7 @@ function docker_run()
     return "$result"
 }
 
+# shellcheck disable=SC2317
 function create_executable_run_script()
 {
     local script_path="${tmpdir_for_startup_script%/}/${1}"

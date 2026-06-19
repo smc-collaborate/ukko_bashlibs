@@ -8,7 +8,9 @@
 if [[ "${RUN_WITH_WRAPPING_MODE:-}" != 'tree' ]] ; then
     function doRunWithWrapping()
     {
-        "$@"
+        local _result=0
+        "$@" || _result="$?"
+        return "$_result"
     }
 
 else
@@ -18,12 +20,15 @@ else
         # echo "ℹ️  Tree output mode enabled for ${APPS_NAME:-?APP?}" >&2
         treeOutput_Setup ""
         {
-            "$@"
+            local xxx=0
+            "$@" || xxx="$?"
+            return "$xxx"
         } 2>&1 | withPrefix "${tree_prefix_mid}"
-        treeOutput_Done "${PIPESTATUS[0]}"
+
+        _result="${PIPESTATUS[0]}"
+        treeOutput_Done "$_result"
+        return "$_result"
     }
-
-
 
     function treeOutput_Setup()
     {
@@ -68,8 +73,7 @@ else
         fi
         [[ "${treeOutput_isBase}" != "yes" ]] && echo -n "${tree_prefix_end}└─ "
         echo -en "${icon} "
-        [[ -n "${APPS_NAME:-}" ]] || echo -en "${APPS_NAME}: "
+        [[ -n "${APPS_NAME:-}" ]] || echo -en "${APPS_NAME:-<APP>}: "
         echo -e "$suffix"
-        return "$result_code"
     }
 fi

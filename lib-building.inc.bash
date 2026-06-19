@@ -1,4 +1,6 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2317
+
 ################
 #
 #
@@ -128,8 +130,6 @@ function app_load_param_option_name_value()
 
 function app_run()
 {
-
-
     local _final_result=0
     local _show_final_summary='no'
 
@@ -146,6 +146,7 @@ function app_run()
 
     do_withOptionalTiming "${option_stats:-no}" do_completeBuildAndTesting "$@" || _final_result="$?"
 
+    [[ "$_show_final_summary" == 'yes' ]] && echo -e "\n${COLOUR[VIVID_BLUE_USED]:-}===== Finished ${APPS_NAME:-} with result: $_final_result =====${COLOUR[OFF_USED]:-}\n"
     [[ "$_show_final_summary" == 'yes' ]] && bashlibs_warn_on_version_if_needed
 
     return "$_final_result"
@@ -209,7 +210,10 @@ function do_completeBuildAndTesting()
                 [[ "$x" == '--with-docker'* ]] || run_cmd+=( "$x" )
             done
             echo -e "Running: ${COLOUR[VIVID_BLUE_USED]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_USED]:-}"
-            "${run_cmd[@]}" || _fullResult="$?"
+            local runResult=0
+            "${run_cmd[@]}" || runResult="$?"
+            [[ "$runResult" -gt "$_fullResult" ]] && _fullResult="$runResult"
+            echo -e "Ran    : ${COLOUR[VIVID_BLUE_USED]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_USED]:-}"
             echo -e "⚠️  Warning - You may need to remove locally built files with '${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} --clean${COLOUR[OFF_USED]:-}' if there are local build artifacts"
         fi
     fi

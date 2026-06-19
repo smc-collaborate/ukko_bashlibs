@@ -287,14 +287,12 @@ function ukkoVerify()
 
 function app_init()
 {
-    set -x
     if [[ -z "${APPS_NAME:-}" ]] ; then
         APPS_NAME="$(basename "${0}" ".sh")"
         [[ "$APPS_NAME" == "test_"* ]] || APPS_NAME="Testing ${PROJ_DIR##*/}"
     fi
     # shellcheck disable=SC2034
     TEST_SCRIPT_NAME="$APPS_NAME"
-    set +x
 }
 
 

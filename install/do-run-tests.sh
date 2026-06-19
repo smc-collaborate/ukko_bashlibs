@@ -1,15 +1,25 @@
 #!/bin/bash -eu
+# shellcheck disable=SC2317
+
 PROJ_DIR_REL="../"
+
 function main()
 {
-    checkAllFilesMatch _loader-shim.inc.bash
+    local result_max=0
+
+    checkAllFilesMatch _loader-shim.inc.bash || result_max="$?"
 
     for proj in "${PROJ_DIR%/}/_sample-projects/"*; do
         if [[ -x "$proj/do-build-and-install.sh" ]] ; then
-            "$proj/do-build-and-install.sh" --with-docker --with-tests
-            return 0
+            local _result=0
+            "$proj/do-build-and-install.sh" --with-docker --with-tests || _result="$?"
+            if [[ "$_result" -gt "$result_max" ]] ; then
+                result_max="$_result"
+            fi
         fi
     done
+
+    return "$result_max"
 }
 
 function checkAllFilesMatch()
