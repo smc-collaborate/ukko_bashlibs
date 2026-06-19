@@ -1,6 +1,6 @@
 #!/bin/bash -eu
 
-THIS_DIR_REL="../"
+PROJ_DIR_REL="../"
 
 function apps_doInstallOrClean()
 {

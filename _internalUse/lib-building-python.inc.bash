@@ -41,11 +41,11 @@ function pyApp_cleanIfNeeded()
 {
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         echo "   Cleaning python cache files" # from $(pwd)"
-        find "${THIS_DIR}" -name '.venv' | forceDelete "     "
-        find "${THIS_DIR}" -name '*.pyc' | forceDelete "     "
-        find "${THIS_DIR}" -name '*.pyo' | forceDelete "     "
-        find "${THIS_DIR}" -name '*.pyd' | forceDelete "     "
-        find "${THIS_DIR}" -name '__pycache__' | forceDelete "     "
+        find "${EXE_DIR}" -name '.venv' | forceDelete "     "
+        find "${EXE_DIR}" -name '*.pyc' | forceDelete "     "
+        find "${EXE_DIR}" -name '*.pyo' | forceDelete "     "
+        find "${EXE_DIR}" -name '*.pyd' | forceDelete "     "
+        find "${EXE_DIR}" -name '__pycache__' | forceDelete "     "
     fi
 }
 
@@ -55,7 +55,7 @@ function pyApp_cleanIfNeeded()
 #
 function do_pythonEnvIfNeeded()
 {
-    [[ -z "${PYTHON_ENV_HERE:-}" ]] && set_PYTHON_ENV_HERE "${THIS_DIR}"
+    [[ -z "${PYTHON_ENV_HERE:-}" ]] && set_PYTHON_ENV_HERE "${EXE_DIR}"
     if [[  "${PYTHON_ENV_HERE}" != "_none_" ]] ; then
         installPkgIfNeeded python3-pip
         [[ "$AM_CLEANING" == 'yes' ]] || installPkgIfNeeded "python3.${python3_subver}-venv"
@@ -100,7 +100,7 @@ function do_setupPythonVenv_orClean()
     [[ "${PYTHON_ENV_HERE}" == "_none_" ]] && return 0 # Skip if PYTHON_ENV_HERE is set to _none_
 
     [[ -n "${1:-}" ]] && PYTHON_ENV_HERE="${1}"
-    [[ -z "${PYTHON_ENV_HERE:-}" ]] && PYTHON_ENV_HERE="${THIS_DIR}"
+    [[ -z "${PYTHON_ENV_HERE:-}" ]] && PYTHON_ENV_HERE="${EXE_DIR}"
 
     [[ "${PYTHON_ENV_SETUP_SKIP:-}" == "${PYTHON_ENV_HERE}" ]] && echo "   Using Python .venv: $(displayPath "${PYTHON_ENV_HERE}")" && return 0
 

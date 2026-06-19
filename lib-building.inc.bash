@@ -9,16 +9,16 @@
 ############################################################################################################################################################
 # A customisable python installer.
 #
-# 1. Setup build environment -- Runs: "${THIS_DIR%}/tools/do-setup-build-environment.sh"  -or-  apps_doSetupBuildEnvironment() if found
+# 1. Setup build environment -- Runs: "${PROJ_DIR%}/tools/do-setup-build-environment.sh"  -or-  apps_doSetupBuildEnvironment() if found
 #
 # 2. If apps_showHeaderTitle() is defined, it will be called to show a header title for the app being built.
 #
 # 3. Runs: apps_doInstallOrClean() to install the app's files, or clean them if --clean is passed.
 #
 # 4. Create Python .venv and install dependencies if needed.
-#    It expects the 'requirements*.txt' to be in '$PYTHON_ENV_HERE' (if defined) or '$THIS_DIR')
+#    It expects the 'requirements*.txt' to be in '$PYTHON_ENV_HERE' (if defined) or '$PROJ_DIR')
 #
-# 5. If there are '.proto' files in the 'proto*' subdirectories, they will be compiled to Python using 'protoc' and the generated files will be placed in '$THIS_DIR/proto_gen'.
+# 5. If there are '.proto' files in the 'proto*' subdirectories, they will be compiled to Python using 'protoc' and the generated files will be placed in '$EXE_DIR/proto_gen'.
 #
 # 6. Customising includes:
 #     -- PYTHON_ENV_HERE=            - Use _none_ to skip creating a virtual environment and installing dependencies there.
@@ -62,7 +62,8 @@ function app_help()
 
     echo "Usage: ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} [--remove | --fresh] [--with-tests]${_msg1} -- [other params for build functions ...]${COLOUR[OFF_USED]:-}"
     echo ""
-    echo "   --with-tests : Run tests after building"
+    echo "   --with-tests[=on]    : Run tests after building"
+    echo "   --with-tests=modules : Run tests after building - including module level tests recursively"
     [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] && echo "${_msg2}"
 
     echo ""
@@ -79,15 +80,19 @@ function app_help()
     echo " eg: apps_doBuildOrClean and can be used to customize the build process"
 }
 
+
+function app_init()
+{
+    [[ -z "${APPS_NAME:-}"                      ]] && APPS_NAME="${PROJ_DIR##*/}"
+    [[ -z "${SUGGEST_HOW_TO_INSTALL_TO_ROOT:-}" ]] && SUGGEST_HOW_TO_INSTALL_TO_ROOT=no
+    APP_DESCRIPTION+=" ${APPS_NAME}"
+}
+
 function app_load_param_defaults()
 {
-    [[ -z "${APPS_NAME:-}"                      ]] && APPS_NAME="${THIS_DIR##*/}"
-    [[ -z "${SUGGEST_HOW_TO_INSTALL_TO_ROOT:-}" ]] && SUGGEST_HOW_TO_INSTALL_TO_ROOT=no
-
-    APP_DESCRIPTION+=" ${APPS_NAME}"
     option_amVerifyingInDocker='no'
-    #export RUN_TESTS='yes'  # This is exported so inherits the value in the calling shell
-    orig_build_kind_param=''
+    option_with_tests="${RUN_TESTS_RECURSIVELY:-no}"   # This is exported so inherits the value in the calling shell
+    option_build_kind_param=''
     option_stats='no'
     option_precommit='yes'
     option_only=''
@@ -106,16 +111,16 @@ function app_load_param_option_name_value()
     if [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] ; then
         param_choose_from_list "!with-docker" "$1" "$2" "dry-run" "yes" "no" && option_amVerifyingInDocker="${2:-yes}" && return 0
     fi
-    [[ "$1" == '--with-tests' ]] && export RUN_TESTS='yes' && return 0
-    [[ "$1" == '--clean'      ]] && orig_build_kind_param="$1" && return 0
-    [[ "$1" == '--fresh'      ]] && orig_build_kind_param="$1" && return 0
-    [[ "$1" == '--remove'     ]] && orig_build_kind_param="$1" && return 0
-    [[ "$1" == '--uninstall'  ]] && orig_build_kind_param="$1" && return 0
+    param_choose_from_list '!with-tests' "$1" "$2" "modules" "yes" "no" && option_with_tests="${2:-yes}" && return 0
+    [[ "$1" == '--clean'      ]] && option_build_kind_param="$1" && return 0
+    [[ "$1" == '--fresh'      ]] && option_build_kind_param="$1" && return 0
+    [[ "$1" == '--remove'     ]] && option_build_kind_param="$1" && return 0
+    [[ "$1" == '--uninstall'  ]] && option_build_kind_param="$1" && return 0
 
     [[ "$1" == '--stats'  ]] && option_stats='yes' && return 0
 
     [[ "$1" == '--no-precommit'  ]] && option_precommit='no' && return 0
-    param_choose_from_list "--only=" "$1" "$2" "source_generate" && option_only="$2" && return 0
+    param_choose_from_list "--only" "$1" "$2" "source_generate" && option_only="$2" && return 0
 
     return 1
 }
@@ -123,9 +128,17 @@ function app_load_param_option_name_value()
 
 function app_run()
 {
+
+
     local _final_result=0
     local _show_final_summary='no'
 
+    export RUN_TESTS_RECURSIVELY=''
+    if [[ "${option_with_tests}" == 'modules' ]] ; then
+        RUN_TESTS_RECURSIVELY="$option_with_tests"
+    elif [[ "${option_with_tests}" != 'yes' ]] ; then
+        option_with_tests='no'
+    fi
     if [[ "${EXPORT_BUILD_TOP_LEVEL_ALREADY_DONE:-}" != 'yes' ]] ; then
         export EXPORT_BUILD_TOP_LEVEL_ALREADY_DONE='yes'
         _show_final_summary='yes'
@@ -148,19 +161,18 @@ function do_completeBuildAndTesting()
     #
     # Step 1 - Clean  first ?
     #
-    if [[ "$orig_build_kind_param" == '--clean' ]] || [[ "$orig_build_kind_param" == '--remove' ]] || [[ "$orig_build_kind_param" == '--uninstall' ]] ; then
+    if [[ ",--clean,--remove,--fresh,--uninstall," == *",${option_build_kind_param}," ]] ; then
         doActions "AM_CLEANING=yes" || _fullResult="$?"
 
         if [[ -L "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" ]] ; then
             msg_suffix+="\n   Also removed link at $(displayPath "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT}" --link-src )"
             do_remove_link "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" || _fullResult="$?"
+        else
+            msg_suffix+="\n   Didn't touch: $(quoteIfNeeded "$(displayPath "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" --link-src )")"
         fi
-        [[ "${_fullResult}" == 0 ]] && echo "   Clean done - All outputs cleaned${msg_suffix}"
+        [[ "${_fullResult}" == 0 ]] && echo -e "   Clean done - All outputs cleaned${msg_suffix}"
 
-        _doBuild='no'
-    elif [[ "$orig_build_kind_param" == '--fresh' ]] ; then
-        doActions "AM_CLEANING=yes" || _fullResult="$?"
-        [[ "${_fullResult}" == 0 ]] && echo "   Clean done - All outputs cleaned"
+        [[ "$option_build_kind_param" == '--fresh' ]] || _doBuild='no'
     fi
 
 
@@ -174,7 +186,7 @@ function do_completeBuildAndTesting()
     #
     # Step 3 - Run Tests if requested
     #
-    if [[ "$_fullResult" == 0 ]] && [[ "${_doBuild}" == 'yes' ]] && [[ "${RUN_TESTS:-}" == 'yes' ]] ; then
+    if [[ "$_fullResult" == 0 ]] && [[ "${_doBuild}" == 'yes' ]] && [[ "$option_with_tests" != 'no' ]] ; then
         runTests || _fullResult="$?"
     fi
 
@@ -224,14 +236,14 @@ function do_protoGenerate_orClean()
     local dirsToReview=()
 
     for relative_dir in . common  ; do
-        for fulldir in "${THIS_DIR%/}/${relative_dir}/proto_"*/ ; do
+        for fulldir in "${PROJ_DIR%/}/${relative_dir}/proto_"*/ ; do
             #|Logging| echo "Checking for proto files in ${fulldir} ..."
             [[ -d "${fulldir}" ]] && dirsToReview+=("${fulldir}")
         done
     done
         for fulldir in "${dirsToReview[@]}" ; do
         pushd "${fulldir}" >/dev/null || true
-            printable_dir="${fulldir#"${THIS_DIR%/}"/}"
+            printable_dir="${fulldir#"${PROJ_DIR%/}"/}"
             if [[ "${AM_CLEANING}" == 'yes' ]] && [[ -d "_generated" ]] ; then
                 echo "   Proto directory[$printable_dir] - Cleaning _generated directory"
                 echo '_generated' | forceDelete "           "
@@ -280,7 +292,7 @@ function setupBuildEnvironment()
 
     [[ "${option_only}" == 'source_generate' ]] && echo "   Only generating sources, not generating applications or build virtual environments" && return 0
 
-    [[ "$(type -t apps_doSetupBuildEnvironment)" != 'function' ]] && [[ ! -f "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] && return 0 # No setup needed
+    [[ "$(type -t apps_doSetupBuildEnvironment)" != 'function' ]] && [[ ! -f "${EXE_DIR%/}/tools/do-setup-build-environment.sh" ]] && return 0 # No setup needed
 
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         echo "   Clearing   Build Environment"
@@ -296,9 +308,9 @@ function setupBuildEnvironment()
 
         doSetupPrecommitEnvironment                                       || FATAL_FAILURE_NO_RETURN "Failed to setup precommit environment: Please check the output above."
 
-        if [[ -f "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] ; then
-            [[  -x "${THIS_DIR%/}/tools/do-setup-build-environment.sh" ]] || FATAL_FAILURE_NO_RETURN "Failed to setup build environment[${THIS_DIR%/}/tools/do-setup-build-environment.sh]: Not executable"
-            "${THIS_DIR%/}/tools/do-setup-build-environment.sh"           || FATAL_FAILURE_NO_RETURN "Failed to setup build environment[${THIS_DIR%/}/tools/do-setup-build-environment.sh]: Please check the output above."
+        if [[ -f "${EXE_DIR%/}/tools/do-setup-build-environment.sh" ]] ; then
+            [[  -x "${EXE_DIR%/}/tools/do-setup-build-environment.sh" ]] || FATAL_FAILURE_NO_RETURN "Failed to setup build environment[${EXE_DIR%/}/tools/do-setup-build-environment.sh]: Not executable"
+            "${EXE_DIR%/}/tools/do-setup-build-environment.sh"           || FATAL_FAILURE_NO_RETURN "Failed to setup build environment[${EXE_DIR%/}/tools/do-setup-build-environment.sh]: Please check the output above."
         fi
     } | withPrefix "   │ "
     [[ "${PIPESTATUS[0]}" == 0 ]] || exit 1
@@ -455,7 +467,7 @@ function doActions()
         echo "🔨 Building ${APPS_NAME}"
     fi
 
-    [[ "${AM_CLEANING:-}" != 'yes' ]] && [[ "${ENSURE_SUBMODULES_ARE_CLONED:-yes}" == 'yes' ]] && git_failIfSubmodulesArentCloned "${THIS_DIR}"
+    [[ "${AM_CLEANING:-}" != 'yes' ]] && [[ "${ENSURE_SUBMODULES_ARE_CLONED:-yes}" == 'yes' ]] && git_failIfSubmodulesArentCloned "${PROJ_DIR}"
 
 
     if [[ " $* " == *" --only=source_generate "* ]] ; then
@@ -469,14 +481,14 @@ function doActions()
 
         do_protoGenerate_orClean
 
-        cd "${THIS_DIR}" || true
+        cd "${PROJ_DIR:-}" || true
 
         found_list=""
         [[ "$(type -t apps_checkSourceValidity)"          == 'function' ]] && apps_checkSourceValidity
         [[ "$(type -t pre_doInstallOrClean)"              == 'function' ]] && pre_doInstallOrClean
         [[ "$(type -t apps_doBuildOrClean)"               == 'function' ]] && found_list+='[apps_doBuildOrClean]'   && apps_doBuildOrClean
         [[ "$(type -t apps_doInstallOrClean)"             == 'function' ]] && found_list+='[apps_doInstallOrClean]' && apps_doInstallOrClean
-        [[ "$(type -t apps_doInstallTestingDependencies)" == 'function' ]] && [[ "${RUN_TESTS:-}" == 'yes' ]] && apps_doInstallTestingDependencies
+        [[ "$(type -t apps_doInstallTestingDependencies)" == 'function' ]] && [[ "$option_with_tests" != 'no' ]] && apps_doInstallTestingDependencies
 
         if [[ -z "${found_list}" ]] ; then
             _paths=()
@@ -498,16 +510,16 @@ function doActions()
 
 function runTests()
 {
-    if [[ -x "${THIS_DIR%/}/do-run-tests.sh" ]] ; then
-        echo "Running tests ...  (${THIS_DIR_AS_DISPLAY%/}/do-run-tests.sh)"
-        "${THIS_DIR%/}/do-run-tests.sh" || FATAL_FAILURE_NO_RETURN "Tests failed: Please check the output above."
-    elif [[ -x "${THIS_DIR%/}/do-all-tests.sh" ]] ; then
+    if [[ -x "${EXE_DIR%/}/do-run-tests.sh" ]] ; then
+        echo "Running tests ...  (${EXE_DIR_AS_DISPLAY%/}/do-run-tests.sh)"
+        "${EXE_DIR%/}/do-run-tests.sh" || FATAL_FAILURE_NO_RETURN "Tests failed: Please check the output above."
+    elif [[ -x "${EXE_DIR%/}/do-all-tests.sh" ]] ; then
 
-        echo "Running tests ...  (${THIS_DIR_AS_DISPLAY%/}/do-all-tests.sh)"
+        echo "Running tests ...  (${EXE_DIR_AS_DISPLAY%/}/do-all-tests.sh)"
         echo -e "⚠️  Deprecated - Prefer name 'do-run-tests.sh'"
-        "${THIS_DIR%/}/do-all-tests.sh" || FATAL_FAILURE_NO_RETURN "Tests failed: Please check the output above."
+        "${EXE_DIR%/}/do-all-tests.sh" || FATAL_FAILURE_NO_RETURN "Tests failed: Please check the output above."
     else
-        FATAL_FAILURE_NO_RETURN "Tests failed: Neither 'apps_runTests()' nor '${THIS_DIR_AS_DISPLAY%/}/do-all-tests.sh' found to run tests."
+        FATAL_FAILURE_NO_RETURN "Tests failed: Missing '${EXE_DIR_AS_DISPLAY%/}/do-run-tests.sh'"
     fi
 }
 

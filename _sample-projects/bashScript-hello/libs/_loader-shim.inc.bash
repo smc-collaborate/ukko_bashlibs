@@ -175,7 +175,7 @@ function ensure_installed_direct_if_needed()
             echo "⚡  'apt-get' needs updating"
             _sudoIfNeeded apt-get update
             _sudoIfNeeded apt-get install -y git
-            ##|x| [[ -n "${THIS_DIR:-}" ]] && _sudoIfNeeded git config --global --add safe.directory "${THIS_DIR%/}/#"
+            ##|x| [[ -n "${EXE_DIR:-}" ]] && _sudoIfNeeded git config --global --add safe.directory "${EXE_DIR%/}/#"
         fi
 
         ! _sudoIfNeeded apt-get install -y wget && echo "❌  Failed to install 'wget'"                                                                                                           >&2 && return 1

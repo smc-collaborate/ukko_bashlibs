@@ -16,7 +16,7 @@ function do_serviceInstall_orClean()
     elif [[ ! -x "${exe_full_path}" ]]; then
         FATAL_FAILURE_NO_RETURN "Not executable      : $(displayPath "${exe_full_path}")"
     else
-        sudoIfNeeded "${BUILD_FUNCS_DIR%/}/_internalUse/do-install-service.sh" "--user=$USER" "--working-dir=$THIS_DIR" "$exe_name" "$exe_full_path" "$@"|| fail_msg="install"
+        sudoIfNeeded "${BUILD_FUNCS_DIR%/}/_internalUse/do-install-service.sh" "--user=$USER" "--working-dir=$EXE_DIR" "$exe_name" "$exe_full_path" "$@"|| fail_msg="install"
     fi
 
     [[ -z "$fail_msg" ]] && return 0

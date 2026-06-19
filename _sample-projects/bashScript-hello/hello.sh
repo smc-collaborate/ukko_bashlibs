@@ -27,6 +27,11 @@ function app_run()
     giveWarning "This is a warning message - these are sent to stderr"
     echo "This is some more output"
     echo -e "Hidden coding help is available with: ${COLOUR[VIVID_BLUE_STDOUT]:-}$CMD_AS_DISPLAY --code-help${COLOUR[OFF_STDOUT]:-}"
+
+    if [[ "$option_person" == "10" ]] ; then
+        hello "world"
+        echo "Said hello to the world"
+    fi
 }
 # shellcheck source=/dev/null
 source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/libs/shim-lib-app.inc.bash"

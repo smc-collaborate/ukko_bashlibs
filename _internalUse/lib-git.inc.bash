@@ -78,10 +78,10 @@ function installLibIfNeeded()
 
     local dest_dir_parent
 
-    if [[ -d "${THIS_DIR%/}/libs" ]] ; then
-        dest_dir_parent="${THIS_DIR%/}/libs"
+    if [[ -d "${EXE_DIR%/}/libs" ]] ; then
+        dest_dir_parent="${EXE_DIR%/}/libs"
     else
-        dest_dir_parent="${THIS_DIR%/}"
+        dest_dir_parent="${EXE_DIR%/}"
     fi
     local dest_dir="${dest_dir_parent%/}/${libname}"
     ###############

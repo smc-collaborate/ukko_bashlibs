@@ -683,7 +683,7 @@ function colours_load()
     colours_setUsed "stdout"
 }
 
-colours_load "auto"
+colours_load "yes"
 
 #
 ##################################################################################
@@ -927,7 +927,7 @@ function giveCodeHelp()
     echo  "    ─────────────────────┼─────────────────────────────────────────────────┼────────────────────────"
     echo "    \$EXE_NAME            │ The name of the executable (e.g. 'myscript.sh') │ ${EXE_NAME:-❓  Not defined}"
     echo "    \$THIS_EXE            │ The full path to the executable                 │ ${THIS_EXE:-❓  Not defined}"
-    echo "    \$THIS_DIR            │ The directory of the executable                 │ ${THIS_DIR:-❓  Not defined}"
+    echo "    \$EXE_DIR             │ The directory of the executable                 │ ${EXE_DIR:-❓  Not defined}"
     echo "    \$THIS_EXE_AS_DISPLAY │ The display path of the executable              │ ${THIS_EXE_AS_DISPLAY:-❓  Not defined}"
     echo "    \$CMD_AS_DISPLAY      │ The executable in a form that can be run        │ ${CMD_AS_DISPLAY:-❓  Not defined}"
     echo ""
@@ -1209,8 +1209,6 @@ function colours_show()
 #################
 #
 
-
-colours_load 'auto'
 
 # |x| echo "ℹ️  !! RUNNING:  $0 $*" >&2
 load_params "$@"

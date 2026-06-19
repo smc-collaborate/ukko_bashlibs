@@ -2,6 +2,23 @@
 BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 source "${BUILD_FUNCS_DIR%/}/lib-common.inc.bash"
 
+
+APP_PARAMS=("$@")
+
+function exitWithVersion()
+{
+    echo "$(basename "$THIS_EXE") ${APP_VERSION:-v?.?.?}"
+    exit 0
+}
+
+if [[ -n "${APP_VERSION:-}" ]]; then
+    # Do outside of all the wrappers so that it is always available, even if there is a problem with the wrapper setup
+    for arg in "$@"; do
+        [[ "$arg" == '--version' ]] && exitWithVersion
+    done
+fi
+
+
 #==============================================================================================
 #
 # This is a standard template for bash scripts that uses:
@@ -86,7 +103,8 @@ function giveCodeHelp()
     echo  "    ─────────────────────┼─────────────────────────────────────────────────┼────────────────────────"
     echo "    \$EXE_NAME            │ The name of the executable (e.g. 'myscript.sh') │ ${EXE_NAME:-❓  Not defined}"
     echo "    \$THIS_EXE            │ The full path to the executable                 │ ${THIS_EXE:-❓  Not defined}"
-    echo "    \$THIS_DIR            │ The directory of the executable                 │ ${THIS_DIR:-❓  Not defined}"
+    echo "    \$EXE_DIR             │ The directory of the executable                 │ ${EXE_DIR:-❓  Not defined}"
+    echo "    \$PROJ_DIR            │ The root directory of the project               │ ${PROJ_DIR:-❓  Not defined}"
     echo "    \$THIS_EXE_AS_DISPLAY │ The display path of the executable              │ ${THIS_EXE_AS_DISPLAY:-❓  Not defined}"
     echo "    \$CMD_AS_DISPLAY      │ The executable in a form that can be run        │ ${CMD_AS_DISPLAY:-❓  Not defined}"
     echo ""
@@ -151,7 +169,7 @@ function do_exitWithHelp()
                 echo -e "     --install  : Installs to $_installDirShow "
             fi
         fi
-        echo -e "     --colours=no|yes|auto  (Default 'auto')"
+        echo -e "     --colours=no|yes   (Default: yes)" # |auto  (Default 'auto')"
         echo ""
         echo "Runs with shared checkout:"
         echo -n "     •  "
@@ -215,29 +233,38 @@ function bashlibs_warn_on_version_if_needed()
 # ---------------|-----------------------|--------------
 function param_choose_from_list()
 {
-    local name_for_comparison="$1"
-    local decorated_name_passed="$2"
-    local value_passed="$3"
+    function _param_choose_from_list()
+    {
+        local name_for_comparison="$1"
+        local decorated_name_passed="$2"
+        local value_passed="$3"
 
-    echo "ℹ️  param_choose_from_list($*)" >&2
-    if [[ "$name_for_comparison" == '--'* ]] ; then
-        echo -e "⚠️  Deprecated - param_choose_####() 'name' rather than '--name='" >&2
-        name_for_comparison="${name_for_comparison#--}"
-        name_for_comparison="${name_for_comparison%=}"
-    fi
+        if [[ "$name_for_comparison" == '--'* ]] || [[ "$name_for_comparison" == *'=' ]] ; then
+            local _bad="$name_for_comparison"
+            name_for_comparison="${name_for_comparison#--}"
+            name_for_comparison="${name_for_comparison%=}"
+            echo -e "⚠️  Deprecated - param_choose_####() ${name_for_comparison@Q} rather than ${_bad@Q}" >&2
+        fi
 
-    if [[ "${name_for_comparison}" == '!'* ]] ; then
-        name_for_comparison="${name_for_comparison#'!'}"
-        # Accept default if the name is passed without '=value' (e.g. '--exit' rather than '--exit=yes' or '--exit=no')
-        [[ "$decorated_name_passed" == "--${name_for_comparison}" ]] && return 0
-    fi
+        if [[ "${name_for_comparison}" == '!'* ]] ; then
+            name_for_comparison="${name_for_comparison#'!'}"
+            # Accept default if the name is passed without '=value' (e.g. '--exit' rather than '--exit=yes' or '--exit=no')
+            [[ "$decorated_name_passed" == "--${name_for_comparison}" ]] && return 0
+        fi
 
-    [[ "$decorated_name_passed" == "--${name_for_comparison}=" ]] || return 1
+        [[ "$decorated_name_passed" == "--${name_for_comparison}=" ]] || return 1
 
 
-    shift 3 || true
+        shift 3 || true
 
-    app_load_param_validate_from_list "--${name_for_comparison}=" "${value_passed}" "$@"
+        app_load_param_validate_from_list "--${name_for_comparison}=" "${value_passed}" "$@"
+    }
+    local _result=0
+    _param_choose_from_list "$@" || _result=$?
+
+
+    # |Logging| echo "ℹ️  param_choose_from_list($*) : Result: ${_result}" >&2
+    return "$_result"
 }
 
 # Return with no argument if name starts with '!'
@@ -288,7 +315,8 @@ function load_params()
     local am_processing_options='yes'
     function _app_get_param_defaults()
     {
-        declare -F app_load_param_defaults  &> /dev/null  || return 0 ; app_load_param_defaults
+        declare -F app_load_param_defaults  &> /dev/null  || return 0
+        app_load_param_defaults
     }
     function _app_get_param_option_name_value()
     {
@@ -305,14 +333,14 @@ function load_params()
     _app_get_param_defaults
     local giveCodeHelp='no'
     local giveStdHelp='no'
+
     for arg in "$@"; do
         [[ -z "$arg" ]] && continue
         if [[ "$am_processing_options" == "yes" ]] && [[ "$arg" == '-'* ]]; then
             if [[ "$arg" == '--' ]] ; then
                 am_processing_options='no'
             elif [[ "$arg" == '--version' ]] && [[ -n "${APP_VERSION:-}" ]]; then
-                echo "$(basename "$THIS_EXE") $APP_VERSION"
-                exit 0
+                exitWithVersion
             elif [[ "$arg" == '--help' ]]; then
                 giveStdHelp='yes'
             elif [[ "$arg" == '--colours=no' ]] || [[ "$arg" == '--colours=yes' ]] || [[ "$arg" == '--colours=auto' ]]; then
@@ -365,7 +393,7 @@ function do_with_check()
     else
         [[ "$status" == 1 ]] || suffix=" with status $status"
         echo -e "Ran    :${COLOUR[VIVID_RED_STDERR]:-}$caption${COLOUR[OFF_STDERR]:-} -- Failed$suffix" >&2
-        [[ "$caption" == "$*" ]] || echo -e "Command: ${COLOUR[VIVID_BLUE_STDERR]:-}$*${COLOUR[OFF_STDERR]:-}" >&2
+        [[ "$caption" == "$*" ]] || echo -e "Command: ${COLOUR[VIVID_BLUE_STDERR]:-}$(quoteIfNeeded "$@")${COLOUR[OFF_STDERR]:-}" >&2
         exit 1
     fi
 }
@@ -475,10 +503,88 @@ function colours_show()
 #################
 #
 
+function app_dumpInfo()
+{
+    local reason="${1:-}"
 
-colours_load 'auto'
+    function dumpEntry_txt()
+    {
+        local name="$1"
+        local value="$2"
 
-# |x| echo "ℹ️  !! RUNNING:  $0 $*" >&2
-load_params "$@"
+        printf " • %-32s = %s\n" "${name}" "${value}"
+    }
 
-app_run "$@"
+    function dumpEntry_var()
+    {
+        local name="$1"
+        shift 1 || true
+
+        local value_txt
+
+        if [[ -v "$name" ]]; then
+            local value="${!name}"
+            value_txt="$(quoteIfNeeded "${value}")"
+        elif [[ $(declare -p "$name" 2>/dev/null) == "declare -a"* ]]; then
+            name="${name}[@]"
+            value_txt="[$(asCsvList "${!name}")]"
+        elif [[ $(declare -p "$name" 2>/dev/null) == "declare -A"* ]]; then
+            value_txt="{"
+            name="${name}[@]"
+            for key in "${!name}" ; do
+                local ref="${name[$key]}"
+                value_txt+=" $(quoteIfNeeded "$key"): $(quoteIfNeeded "${!ref}")"
+            done
+            value_txt+="}"
+        else
+            value_txt="<not set>"
+            return 0
+        fi
+        dumpEntry_txt "\$${name}" "$value_txt" "$*"
+
+    }
+
+
+    {
+        [[ -n "$reason" ]] && echo -e "$reason\n"
+        echo -n "$CMD_AS_DISPLAY"
+        for x in "${APP_PARAMS[@]}" ; do
+            echo -n ' '
+            quoteIfNeeded "$x"
+        done
+        echo ""
+
+        local options=("${!option_@}")
+        for option in "${options[@]}" ; do
+            dumpEntry_var "${option}" "${option@a}"
+        done
+        echo ""
+        dumpEntry_var "APPS_NAME"
+        dumpEntry_var "SUGGEST_HOW_TO_INSTALL_TO_ROOT"
+        dumpEntry_var "VERIFY_ON_BUILD_ENVIRONMENTS"
+        dumpEntry_var "EXE_DIR"
+        dumpEntry_var "EXE_DIR_AS_DISPLAY"
+        dumpEntry_var "PROJ_DIR"
+        dumpEntry_var "APP_SELF_INSTALL"
+        [[ "${INSTALLATION_NOTE:-[NotCopied]}" == "[NotCopied]" ]] || dumpEntry_var "INSTALLATION_NOTE"
+        dumpEntry_var "ORIG_PWD"
+        dumpEntry_var "PWD"
+        dumpEntry_txt "colours"               "${UKKO_COLOURS_CHOSEN@Q}"
+
+    } | withLeftBox >&2
+}
+
+
+function app_contentsFull()
+{
+    load_params "$@"
+    [[ "${FULL_VERBOSITY:-}" == 'yes' ]] && app_dumpInfo "ℹ️  Summarising parameters and environment:  \$FULL_VERBOSITY=${FULL_VERBOSITY@Q}"
+
+    app_run "$@"
+}
+
+
+source "${BUILD_FUNCS_DIR%/}/_internalUse/lib-wrapping.inc.bash"
+declare -F app_init  &> /dev/null  && app_init   # Must be outside of the 'full' as it sets up things for the tree ..
+
+doRunWithWrapping app_contentsFull "$@"

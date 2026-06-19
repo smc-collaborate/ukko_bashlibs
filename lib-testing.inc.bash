@@ -1,4 +1,6 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2317
+
 ################
 #
 #
@@ -40,18 +42,7 @@
 #| ╰─────────────────────────────────────────────────────────
 ############################
 
-BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
-source "${BUILD_FUNCS_DIR%/}/lib-common.inc.bash"
 
-TEST_SCRIPT_NAME="$(basename "${THIS_EXE}" ".sh")"
-
-if [[ -z "${BASE_TEST_SCRIPT:-}" ]] ; then
-    export BASE_TEST_SCRIPT="$THIS_EXE"
-fi
-if [[ "${BASE_TEST_SCRIPT:-}" == "$THIS_EXE" ]] ; then
-    # shellcheck disable=SC2034
-    IS_BASE_TEST_SCRIPT='yes'
-fi
 
 failFound='no'
 testName='<NONE>'
@@ -214,17 +205,17 @@ function get_GOLD_REF_DIR()
 {
     [[ -n "${GOLD_REF_DIR:-}" ]] && return 0
 
-    export PARENT_DIR ; PARENT_DIR="$(dirname "${THIS_DIR}")"
+    export PARENT_DIR ; PARENT_DIR="$(dirname "${EXE_DIR}")"
     export GRANDPARENT_DIR ; GRANDPARENT_DIR=$(dirname "${PARENT_DIR}")
     #export SAMPLES_DIR="${PARENT_DIR}/samples"
 
     msgs=()
-    msgs+=("⚠️  - THIS_DIR        =$THIS_DIR")
+    msgs+=("⚠️  - EXE_DIR        =$EXE_DIR")
     msgs+=("⚠️  - PARENT_DIR      =$PARENT_DIR")
     msgs+=("⚠️  - GRANDPARENT_DIR =$GRANDPARENT_DIR")
     #msgs+=("⚠️    - SAMPLES_DIR    =$SAMPLES_DIR")
 
-    for dir in "${PROJ_DIR:-}" "${GRANDPARENT_DIR}" "${PARENT_DIR}" "${THIS_DIR}" "-end-"; do
+    for dir in "${PROJ_DIR:-}" "${GRANDPARENT_DIR}" "${PARENT_DIR}" "${EXE_DIR}" "-end-"; do
         [[ -z "${dir}" ]] && continue
         if [[ "${dir}" == "-end-" ]] ; then
             echo "⚠️  \$GOLD_REF_DIR : Not found - defaulting to missing: ${GOLD_REF_DIR}"
@@ -249,7 +240,7 @@ function get_GOLD_REF_DIR()
 # shellcheck disable=SC2317
 function find_and_run_tests()
 {
-    dirs_to_review=("${THIS_DIR%/}" "${THIS_DIR%/}/testing" "${THIS_DIR%/}/tests" "$@")
+    dirs_to_review=("${EXE_DIR%/}" "${EXE_DIR%/}/testing" "${EXE_DIR%/}/tests" "$@")
 
     tests=()
 
@@ -294,41 +285,31 @@ function ukkoVerify()
 }
 
 
-if [[ "${BASE_TEST_SCRIPT:-}" == "$THIS_EXE" ]] ; then
-    echo "Full Test Process Started"
-    echo_prefix_mid=""
-    echo_prefix_end=""
-else
-    echo         -n "├── "
-    echo_prefix_mid="│   │  "
-    echo_prefix_end="│   "
-fi
-
-echo -e "Running ${COLOUR[YELLOW_STDOUT]:-}${CMD_AS_DISPLAY}${COLOUR[OFF_STDOUT]:-}"
-
-main_result_code=0
-
+function app_init()
 {
-    set -e
+    set -x
+    if [[ -z "${APPS_NAME:-}" ]] ; then
+        APPS_NAME="$(basename "${0}" ".sh")"
+        [[ "$APPS_NAME" == "test_"* ]] || APPS_NAME="Testing ${PROJ_DIR##*/}"
+    fi
+    # shellcheck disable=SC2034
+    TEST_SCRIPT_NAME="$APPS_NAME"
+    set +x
+}
 
+
+function app_run()
+{
+    cd "$PROJ_DIR" || FATAL_FAILURE_NO_RETURN "Failed to change directory to ${PROJ_DIR}"
     [[ "$(type -t setupForMain)" == 'function' ]] && setupForMain "$@"
 
     main "$@" || return 1
-    [[ "${didFail:-}" != 'yes' ]] || return 1
+    [[ "${didFail:-}" == 'yes' ]] && return 1
     return 0
-} 2>&1 | withPrefix "${echo_prefix_mid}"
-main_result_code=${PIPESTATUS[0]}
-if [[ "$main_result_code" -ne 0 ]] ; then
-    echo "${echo_prefix_end}└─ ❌  $TEST_SCRIPT_NAME: Failed with error code $main_result_code"
-else
-    echo "${echo_prefix_end}└─ ✅  $TEST_SCRIPT_NAME: Completed successfully"
-fi
+}
 
-#|if [[ "${BASE_TEST_SCRIPT:-}" == "$THIS_EXE" ]] ; then
-#|    if [[ "$main_result_code" -ne 0 ]] ; then
-#|        echo "❌  Full Test Process failed"
-#|    else
-#|        echo "✅  Full Test Process completed successfully"
-#|    fi
-#|fi
-exit "$main_result_code"
+[[ -z "${RUN_WITH_WRAPPING_MODE:-}" ]] && export RUN_WITH_WRAPPING_MODE='tree'
+
+
+BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
+source "${BUILD_FUNCS_DIR%/}/lib-app.inc.bash"

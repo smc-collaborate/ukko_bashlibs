@@ -178,13 +178,16 @@ function displayPath()
     skip_relative_if_contains="$(printf -v spaces "%*s" "$max_back" "" && echo "${spaces// /../}")"
     skip_relative_if_contains="${skip_relative_if_contains%/}"
 
-    local orig
-    local relPath
+    local orig=''
+    local relPath=''
     local result
 
-    orig="$(realpath "${pathToReview}")"
+    if [[ -n "$pathToReview" ]] ; then
+        orig="$(realpath "${pathToReview}")"
+        relPath="$(realpath --relative-to="${ORIG_PWD%/}/" "${orig}")"
+    fi
     result="${orig/#$HOME/\~}"
-    relPath="$(realpath --relative-to="${ORIG_PWD%/}/" "${orig}")"
+
     [[ "${1:-}" == "--run-path" ]] && [[ "$relPath" != *"/"* ]] && [[ "$relPath" != "./"* ]] && [[ "$relPath" != "." ]] && relPath="./${relPath}"
     [[ "$relPath" != *"${skip_relative_if_contains}"* ]] && [[ "${#result}" -gt  "${#relPath}" ]] && result="$relPath"
         skip_relative_if_contains="${skip_relative_if_contains%/}"
@@ -331,8 +334,10 @@ function colours_load()
 
     UKKO_COLOURS_CHOSEN="--colours=$arg"
 
-    [[ -t 1 ]] || UKKO_COLOURS_CHOSEN+=", stdout redirected"
-    [[ -t 2 ]] || UKKO_COLOURS_CHOSEN+=", stderr redirected"
+    if [[ "$arg" == 'auto' ]] ; then
+        [[ -t 1 ]] || UKKO_COLOURS_CHOSEN+=", stdout redirected"
+        [[ -t 2 ]] || UKKO_COLOURS_CHOSEN+=", stderr redirected"
+    fi
 
     # |x| echo "colours_load($arg): $UKKO_COLOURS_CHOSEN" >&2
     local kind
@@ -367,7 +372,7 @@ function colours_load()
     colours_setUsed "stdout"
 }
 
-colours_load "auto"
+colours_load "yes"
 
 #
 ##################################################################################
@@ -626,21 +631,18 @@ if [[ -z "${THIS_EXE:-}" ]] ; then
 
     THIS_EXE="$(realpath -m "${THIS_EXE}")"
 fi
-if [[ -z "${THIS_DIR:-}" ]] ; then
-    _dir="$(dirname "${THIS_EXE}")"
-    [[ -n "${THIS_DIR_REL:-}" ]] && _dir="${_dir%/}/${THIS_DIR_REL%/}"
-    THIS_DIR="$(realpath -m "${_dir}")"
-fi
+[[ -n "${EXE_DIR:-}"  ]] || EXE_DIR="$(realpath -m "$(dirname "${THIS_EXE}")")"
+[[ -n "${PROJ_DIR:-}" ]] || PROJ_DIR="$(realpath -m "${EXE_DIR%/}/${PROJ_DIR_REL:-}")"
 # shellcheck disable=SC2034
 UKKO_BASHLIBS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 THIS_EXE_AS_DISPLAY="$(displayPath "$THIS_EXE")"
-THIS_DIR_AS_DISPLAY="$(displayPath "$THIS_DIR")"
+EXE_DIR_AS_DISPLAY="$(displayPath "$EXE_DIR")"
 
 CMD_AS_DISPLAY="$(displayPath "$0" --link-src --run-path)"
 [[ -z "${ORIG_EXE_RUN:-}" ]] && export ORIG_EXE_RUN="${THIS_EXE}"
-[[ -z "${ORIG_EXE_DIR:-}" ]] && export ORIG_EXE_DIR="${THIS_DIR}"
+[[ -z "${ORIG_EXE_DIR:-}" ]] && export ORIG_EXE_DIR="${EXE_DIR}"
 [[ -z "${ORIG_EXE_RUN_AS_DISPLAY:-}" ]] && export ORIG_EXE_RUN_AS_DISPLAY="${THIS_EXE_AS_DISPLAY}"
-[[ -z "${ORIG_EXE_DIR_AS_DISPLAY:-}" ]] && export ORIG_EXE_DIR_AS_DISPLAY="${THIS_DIR_AS_DISPLAY}"
+[[ -z "${ORIG_EXE_DIR_AS_DISPLAY:-}" ]] && export ORIG_EXE_DIR_AS_DISPLAY="${EXE_DIR_AS_DISPLAY}"
 [[ -z "${ORIG_EXE_CMD_AS_DISPLAY:-}" ]] && export ORIG_EXE_CMD_AS_DISPLAY="${CMD_AS_DISPLAY}"
 
 

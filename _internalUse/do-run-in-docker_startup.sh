@@ -10,7 +10,7 @@ set -eu
 
 
 THIS_EXE="$(readlink -f "${BASH_SOURCE[0]}")"
-THIS_DIR="$(realpath -m "$(dirname "$THIS_EXE")")"
+EXE_DIR="$(realpath -m "$(dirname "$THIS_EXE")")"
 
 function withPrefix()
 {
@@ -58,18 +58,18 @@ done
 
 echo "Running within docker image [${NAME:-} ${VERSION:-}] ($option_exit) cmd: ${option_cmd_to_run[*]}" >&2
 
-if [[ -d "${THIS_DIR%/}/ssh_keys" ]] ; then
+if [[ -d "${EXE_DIR%/}/ssh_keys" ]] ; then
     #echo "Installing keys"
 
     # This can be made more secure by only copying specific files instead of the whole directory, but this is good enough for now and allows flexibility in what secrets are needed without having to change this script.
     mkdir -p ~/.ssh
-    cp "${THIS_DIR%/}/ssh_keys/"* ~/.ssh/ || echo "⚠️  No secrets found in ${THIS_DIR%/}/ssh_keys/ to copy to ~/.ssh/"
+    cp "${EXE_DIR%/}/ssh_keys/"* ~/.ssh/ || echo "⚠️  No secrets found in ${EXE_DIR%/}/ssh_keys/ to copy to ~/.ssh/"
     chmod 600 ~/.ssh/*     || echo "⚠️  No secrets found in ~/.ssh/ to set permissions on"
 fi
 mkdir -p "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 
-for file in "${THIS_DIR%/}/pre-"*; do
+for file in "${EXE_DIR%/}/pre-"*; do
     if [ -x "$file" ]; then
         echo "Processing: $file"
         "$file" || echo "⚠️  Failed to execute $file, but continuing with the rest of the startup script."
@@ -84,7 +84,7 @@ return_value=0
 
 "${option_cmd_to_run[@]}" || return_value=$?
 
-for file in "${THIS_DIR%/}/post-"*; do
+for file in "${EXE_DIR%/}/post-"*; do
     if [ -x "$file" ]; then
         echo "Processing: $file"
         "$file" || echo "⚠️  Failed to execute $file, but continuing with the rest of the startup script."

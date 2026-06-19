@@ -74,6 +74,7 @@ function app_load_param_option_name_value()
 
 function app_run()
 {
+    echo "APPS_NAME: ${APPS_NAME:-}  (Version: ${APP_VERSION:-}, Description: ${APP_DESCRIPTION:-})"
     IFS=',' read -ra docker_images_array <<< "$option_docker_images"
 
     [[ "${#docker_images_array[@]}" == 0 ]] && do_errorExitWithSuggestion "Docker images not specified"
@@ -95,9 +96,9 @@ function app_run()
         docker_run "$img" || this_result="$?"
 
         if [[ "${option_dry_run:-}" == 'yes' ]] ; then
-            _msg="✅  Docker dry-run       : $(quoteIfNeeded "${docker_params[@]}")"
+            _msg="ℹ️  Docker dry-run       : $(quoteIfNeeded "${docker_params[@]}")"
         elif [[ "$this_result" == 0 ]]; then
-            _msg="✅  Docker run succeeded : $(quoteIfNeeded "${docker_params[@]}")"
+            _msg="✅  Docker run succeeded : $img" "$(displayPath "$option_workspace")" "$(quoteIfNeeded "${local_cmd_to_run[@]}")"
         else
             _msg="❌  Docker run failed    : $(quoteIfNeeded "${docker_params[@]}")"
             [[ "$this_result" != 1 ]] && _msg+="  [Exit code: $this_result]"
@@ -130,7 +131,7 @@ function docker_run()
     ######
     #
     tmpdir_for_startup_script="$(mktemp -d '/tmp/runWithinImage_XXXX')"
-    cp -a "${THIS_DIR%/}/_internalUse/_in_docker_startup.sh" "${tmpdir_for_startup_script}/_startup.sh"
+    cp -a "${EXE_DIR%/}/_internalUse/_in_docker_startup.sh" "${tmpdir_for_startup_script}/_startup.sh"
 
     if [[ "${option_apt_get}" == "yes" ]] ; then
        {
@@ -153,8 +154,15 @@ function docker_run()
     [[ -n "${option_workspace:-}"  ]] && docker_params+=("-v" "${option_workspace%/}/:/workspace")
     docker_params+=("${docker_image}")
     docker_params+=("bash" "/startup/_startup.sh" "--exit=${option_exit}")
+    local_cmd_to_run=()
+    for arg in "${option_cmd_to_run[@]}" ; do
+        if [[ "$arg" == "${option_workspace%/}/"* ]] ; then
+            arg="/workspace/${arg#"${option_workspace%/}"/}"
+        fi
+        local_cmd_to_run+=("$arg")
+    done
 
-    [[ "${#option_cmd_to_run[@]}" -gt 0 ]] && docker_params+=("run:" "${option_cmd_to_run[@]}")
+    [[ "${#local_cmd_to_run[@]}" -gt 0 ]] && docker_params+=("run:" "${local_cmd_to_run[@]}")
 
     echo "             -> $(quoteIfNeeded "${docker_params[@]}")"
 

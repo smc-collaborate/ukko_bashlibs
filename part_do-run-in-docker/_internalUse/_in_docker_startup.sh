@@ -10,7 +10,9 @@ set -eu
 
 
 THIS_EXE="$(readlink -f "${BASH_SOURCE[0]}")"
-THIS_DIR="$(realpath -m "$(dirname "$THIS_EXE")")"
+EXE_DIR="$(realpath -m "$(dirname "$THIS_EXE")")"
+# shellcheck disable=SC2034
+PROJ_DIR="$EXE_DIR"
 
 function withPrefix()
 {
@@ -41,7 +43,7 @@ function dumpVersions()
         pip3 --version    2>/dev/null
         protoc --version  2>/dev/null
 
-        for file in "${THIS_DIR%/}/post-"*; do
+        for file in "${EXE_DIR%/}/post-"*; do
             if [ -x "$file" ]; then
                 echo "Processed: $file"
             fi
@@ -53,29 +55,29 @@ echo "════════════════════════�
 source /etc/os-release
 
 option_exit='--exit=on-success'
-option_cmd_to_run=()
+option_local_cmd_to_run=()
 while [[ "$#" -gt 0 ]] ; do
     _arg="$1"
     shift 1 || true
     [[ "$_arg" == "--exit="* ]] && option_exit="$_arg" && continue
-    [[ "$_arg" == 'run:' ]] && option_cmd_to_run+=("$@") && break
+    [[ "$_arg" == 'run:' ]] && option_local_cmd_to_run+=("$@") && break
     echo "⚠️  Unknown argument: $_arg" >&2
 done
 
-echo "Running within docker image [${NAME:-} ${VERSION:-}] ($option_exit) cmd: ${option_cmd_to_run[*]}" >&2
+echo "Running within docker image [${NAME:-} ${VERSION:-}] ($option_exit) cmd: ${option_local_cmd_to_run[*]}" >&2
 
-if [[ -d "${THIS_DIR%/}/ssh_keys" ]] ; then
+if [[ -d "${EXE_DIR%/}/ssh_keys" ]] ; then
     #echo "Installing keys"
 
     # This can be made more secure by only copying specific files instead of the whole directory, but this is good enough for now and allows flexibility in what secrets are needed without having to change this script.
     mkdir -p ~/.ssh
-    cp "${THIS_DIR%/}/ssh_keys/"* ~/.ssh/ || echo "⚠️  No secrets found in ${THIS_DIR%/}/ssh_keys/ to copy to ~/.ssh/"
+    cp "${EXE_DIR%/}/ssh_keys/"* ~/.ssh/ || echo "⚠️  No secrets found in ${EXE_DIR%/}/ssh_keys/ to copy to ~/.ssh/"
     chmod 600 ~/.ssh/*     || echo "⚠️  No secrets found in ~/.ssh/ to set permissions on"
 fi
 mkdir -p "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 
-for file in "${THIS_DIR%/}/pre-"*; do
+for file in "${EXE_DIR%/}/pre-"*; do
     if [ -x "$file" ]; then
         echo "Processing: $file"
         "$file" || echo "⚠️  Failed to execute $file, but continuing with the rest of the startup script."
@@ -88,9 +90,9 @@ cd /workspace/
 
 return_value=0
 
-"${option_cmd_to_run[@]}" || return_value=$?
+"${option_local_cmd_to_run[@]}" || return_value=$?
 
-for file in "${THIS_DIR%/}/post-"*; do
+for file in "${EXE_DIR%/}/post-"*; do
     if [ -x "$file" ]; then
         echo "Processing: $file"
         "$file" || echo "⚠️  Failed to execute $file, but continuing with the rest of the startup script."
@@ -99,11 +101,11 @@ done
 
 dumpVersions  | withLeftBox
 if [[ "$return_value" != 0 ]] ; then
-    echo "⚠️  Command \`${option_cmd_to_run[*]@Q}\` failed."
+    echo "⚠️  Command \`${option_local_cmd_to_run[*]@Q}\` failed."
 else
-    echo "ℹ️  Command \`${option_cmd_to_run[*]@Q}\` ran successfully."
+    echo "ℹ️  Command \`${option_local_cmd_to_run[*]@Q}\` ran successfully."
 fi
-echo "Ran: ${option_cmd_to_run[*]} with exit code: $return_value" | withPrefix "  • " >&2
+echo "Ran: ${option_local_cmd_to_run[*]} with exit code: $return_value" | withPrefix "  • " >&2
 if [[ "$option_exit" == "--exit=no" ]] || [[ "$option_exit" == "--exit=on-success" && "$return_value" != 0 ]] ; then
     echo "═══════════════════════════════════════════════════════════════════════════"
     echo " Staying in docker image [$option_exit]"

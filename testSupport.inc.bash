@@ -654,8 +654,8 @@ function doTest_compare_annotated_files()
     doCmd_check_stdOut annotatedData "$@" || true
 }
 
-if [[ -n "${THIS_DIR:-}" ]] ; then
-    export PARENT_DIR ; PARENT_DIR="$(dirname "${THIS_DIR}")"
+if [[ -n "${EXE_DIR:-}" ]] ; then
+    export PARENT_DIR ; PARENT_DIR="$(dirname "${EXE_DIR}")"
     export SAMPLES_DIR="${PARENT_DIR}/samples"
 
     set +e
