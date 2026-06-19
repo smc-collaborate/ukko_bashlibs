@@ -24,7 +24,7 @@ Built and tested on:
 │ Additional functions:
 │      --help     : Give this help message
 │      --version  : Give version : 1.0.0
-│      --colours=no|yes|auto  (Default 'auto')
+│      --colours=no|yes  (Default 'yes')
 ╰───────────────────────────────────────────────────────────────────────
 ```
 

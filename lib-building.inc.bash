@@ -146,7 +146,7 @@ function app_run()
 
     do_withOptionalTiming "${option_stats:-no}" do_completeBuildAndTesting "$@" || _final_result="$?"
 
-    [[ "$_show_final_summary" == 'yes' ]] && echo -e "\n${COLOUR[VIVID_BLUE_USED]:-}===== Finished ${APPS_NAME:-} with result: $_final_result =====${COLOUR[OFF_USED]:-}\n"
+    # |x| [[ "$_show_final_summary" == 'yes' ]] && echo -e "\n${COLOUR[VIVID_BLUE_USED]:-}===== Finished ${APPS_NAME:-} with result: $_final_result =====${COLOUR[OFF_USED]:-}\n"
     [[ "$_show_final_summary" == 'yes' ]] && bashlibs_warn_on_version_if_needed
 
     return "$_final_result"
@@ -192,7 +192,7 @@ function do_completeBuildAndTesting()
     fi
 
     #
-    # Step 4 - Repeat in docker if requestedd
+    # Step 4 - Repeat in docker if requested
     #
 
     if [[ "$option_amVerifyingInDocker" != 'no' ]] ; then

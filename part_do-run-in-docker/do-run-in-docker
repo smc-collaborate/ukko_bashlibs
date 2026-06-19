@@ -48,13 +48,12 @@ function app_load_param_defaults()
 {
     option_docker_images=''
     option_exit='default'
-    option_workspace="$ORIG_PWD"
+    option_workspace=""
     option_keys_dir='' ;   [[ -n "${HOME:-}" ]] && option_keys_dir="${HOME%/}/.ssh/"
     option_dry_run=''
     option_apt_get='no'
     option_cmd_to_run=()
 }
-
 function app_load_param_direct_value()
 {
     [[ -z "${option_docker_images:-}" ]] && option_docker_images="$1" && return 0
@@ -74,9 +73,28 @@ function app_load_param_option_name_value()
     return 1
 }
 
+function app_params_review()
+{
+    [[ -n "${option_docker_images}" ]] || do_errorExitWithSuggestion "Docker images not specified. Please specify at least one docker image to run with."
+
+    [[ -n "${option_workspace}" ]] && return 0
+    option_workspace="$(realpath -m "$ORIG_PWD")"
+    cmd="${option_cmd_to_run[0]:-}"
+    [[ "$cmd" == "/"* ]] || return 0
+    local longestAncestor
+    longestAncestor="$(paths_findLongestAncestor "$cmd" "$option_workspace")"
+    if [[ "${UKKO_VERBOSITY:-}" == 'all' ]] ; then
+    {
+        echo "~~> Comparing cmd   : $cmd"
+        echo "~~> with      pwd   : $option_workspace"
+        echo "~~> Longest Ancestor: $longestAncestor"
+    } >&2
+    fi
+    option_workspace="$longestAncestor"
+}
+
 function app_run()
 {
-    echo "APPS_NAME: ${APPS_NAME:-}  (Version: ${APP_VERSION:-}, Description: ${APP_DESCRIPTION:-})"
     IFS=',' read -ra docker_images_array <<< "$option_docker_images"
 
     [[ "${#docker_images_array[@]}" == 0 ]] && do_errorExitWithSuggestion "Docker images not specified"
@@ -173,7 +191,11 @@ function docker_run()
     local result=0
     "${docker_params[@]}" || result="$?"
 
-    echo "ℹ️  Returned from docker with exit code: $result" >&2
+    if [[ "$result" == "0" ]] ; then
+        echo "ℹ️  Returned from docker with: exitCode= $result" >&2
+    else
+        echo "❌  Returned from docker with: exitCode= $result" >&2
+    fi
 
     rm -rf "${tmpdir_for_startup_script}"
 

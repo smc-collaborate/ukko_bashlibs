@@ -287,12 +287,14 @@ function ukkoVerify()
 
 function app_init()
 {
+    # |!!>| set -x
     if [[ -z "${APPS_NAME:-}" ]] ; then
         APPS_NAME="$(basename "${0}" ".sh")"
         [[ "$APPS_NAME" == "test_"* ]] || APPS_NAME="Testing ${PROJ_DIR##*/}"
     fi
     # shellcheck disable=SC2034
     TEST_SCRIPT_NAME="$APPS_NAME"
+    # |!!>| set +x
 }
 
 
@@ -301,12 +303,15 @@ function app_run()
     cd "$PROJ_DIR" || FATAL_FAILURE_NO_RETURN "Failed to change directory to ${PROJ_DIR}"
     [[ "$(type -t setupForMain)" == 'function' ]] && setupForMain "$@"
 
-    main "$@" || return 1
-    [[ "${didFail:-}" == 'yes' ]] && return 1
+    main "$@" || didFail='yes'
+    [[ "${didFail:-}" == 'yes' ]] && echo "✗ Failed Tests" && return 1
+
+    echo "✓ Passed Tests"
+
     return 0
 }
 
-[[ -z "${RUN_WITH_WRAPPING_MODE:-}" ]] && export RUN_WITH_WRAPPING_MODE='tree'
+[[ -z "${RUN_WITH_WRAPPING_MODE:-}" ]] && export RUN_WITH_WRAPPING_MODE='left-boxed'
 
 
 BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"

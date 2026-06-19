@@ -9,7 +9,7 @@ APP_PARAMS=("$@")
 
 function exitWithVersion()
 {
-    echo "$(basename "$THIS_EXE") ${APP_VERSION:-v?.?.?}"
+    echo "$CMD_AS_DISPLAY ${APP_VERSION:-v?.?.?}"
     exit 0
 }
 
@@ -197,7 +197,7 @@ function do_withOptionalTiming()
     else
         "$@" || result="$?"
     fi
-
+    # |!!>| echo "!!!!!!!!! do_withOptionalTiming[$*] : Result: $result" >&2
     return "$result"
 }
 
@@ -293,6 +293,34 @@ function param_choose_yes_no()
     param_choose_from_list "$@" "yes" "no"
 }
 
+#
+# ref_name="$1"
+# provided_name="$2"
+# provided_value_txt="$3"
+# min_value
+# max_value
+function param_int()
+{
+    local ref_name="$1"
+    local provided_name="$2"
+    local provided_value_txt="$3"
+    local min_value="${4:-}"
+    local max_value="${5:-}"
+
+    [[ "$ref_name" == "$provided_name" ]] || return 1
+
+    local caption="${!ref_name}[${min_value}…${max_value}]"
+    echo "ℹ️  $caption : Validating ${provided_value_txt@Q}"
+
+    [[ "$provided_value_txt" =~ ^[+-]?[0-9]+$ ]] || do_errorExitWithSuggestion "Invalid value for $caption: ${provided_value_txt@Q} is not an integer"
+
+    local provided_value="$provided_value_txt"
+    [[ -n "$min_value" ]] && [[ "$provided_value" -lt "$min_value" ]] && do_errorExitWithSuggestion "Invalid value for $caption: ${provided_value@Q} is less than minimum allowed value of $min_value"
+    [[ -n "$max_value" ]] && [[ "$provided_value" -gt "$max_value" ]] && do_errorExitWithSuggestion "Invalid value for $caption: ${provided_value@Q} is greater than maximum allowed value of $max_value"
+
+    return 0
+}
+
 function app_load_param_validate_from_list()
 {
     local name="$1"
@@ -320,6 +348,12 @@ function load_params()
         declare -F app_load_param_defaults  &> /dev/null  || return 0
         app_load_param_defaults
     }
+    function _app_get_param_review()
+    {
+        declare -F app_params_review  &> /dev/null  || return 0
+        app_params_review
+    }
+
     function _app_get_param_option_name_value()
     {
         declare -F app_load_param_option_name_value  &> /dev/null  && app_load_param_option_name_value "$1" "${2:-}"
@@ -371,7 +405,7 @@ function load_params()
     elif [[ "$giveStdHelp" == "yes" ]]; then
         do_exitWithHelp ""
     fi
-
+    _app_get_param_review
 }
 
 function do_with_check()
@@ -576,6 +610,35 @@ function app_dumpInfo()
     } | withLeftBox >&2
 }
 
+# |!!>| export app_result_fname=''
+# |!!>| echo "app_result_include() - Initialised" >&2
+# |!!>| function app_result_include()
+# |!!>| {
+# |!!>|     set -x
+# |!!>|     local _comment="${2:-}"
+# |!!>|     local _readValue=0
+# |!!>|     echo "!!> ${_comment}: app_result_include($*) : app_result_fname=${app_result_fname@Q}" >&2
+# |!!>|
+# |!!>|     [[ -n "${app_result_fname:-}" ]] && _readValue="$(<"$app_result_fname")"
+# |!!>|     echo "!!> ${_comment}: Loaded value $_readValue from [$app_result_fname]" >&2
+# |!!>|     local valueToSet="$1"
+# |!!>|
+# |!!>|     if [[ "$valueToSet" == "read-and-flush" ]] ; then
+# |!!>|         echo "!!> ${_comment}: Flushing value file [$app_result_fname]" >&2
+# |!!>|         [[ -n "${app_result_fname:-}" ]] && rm -rf "$app_result_fname"
+# |!!>|         return "$_readValue"
+# |!!>|     fi
+# |!!>|     if [[ "$valueToSet" -gt "$_readValue" ]] ; then
+# |!!>|         echo "!!> ${_comment}: app_result_include($*) changed $_readValue -> $valueToSet" >&2
+# |!!>|
+# |!!>|         [[ -z "${app_result_fname:-}" ]] && export app_result_fname="$(mktemp "app_result_include_XXXXX.value")"
+# |!!>|         echo "$valueToSet" > "$app_result_fname"
+# |!!>|         echo "!!> ${_comment}: ----- $app_result_fname now contains: $(<"$app_result_fname")" >&2
+# |!!>|     else
+# |!!>|         echo "!!> ${_comment}: app_result_include($*) unchanged $_readValue" >&2
+# |!!>|     fi
+# |!!>|     set +x
+# |!!>| }
 
 function app_contentsFull()
 {
@@ -583,12 +646,18 @@ function app_contentsFull()
     {
         local _runValue=0
         load_params "$@" || _runValue="$?"
-        [[ "${FULL_VERBOSITY:-}" == 'yes' ]] && app_dumpInfo "ℹ️  Summarising parameters and environment:  \$FULL_VERBOSITY=${FULL_VERBOSITY@Q}"
-
+         # |!!>| echo "!!> app_contentsFull.load_params() : $_runValue" >&2
+        [[ "${UKKO_VERBOSITY:-}" == 'all' ]] && app_dumpInfo "ℹ️  Summarising parameters and environment:  \$UKKO_VERBOSITY=${UKKO_VERBOSITY@Q}"
         app_run "$@" || _runValue="$?"
+        # |!!>| echo "!!> app_contentsFull.app_run() :  $_runValue" >&2
 
         return "$_runValue"
     } || value=0
+
+    # |!!>| echo "!!> app_contentsFull: $value" >&2
+    # |!!>| app_result_include "$?" 'app_contentsFull'
+
+    # |!!>| app_result_include read-and-flush 'app_contentsFull'
 
     return "$value"
 }
@@ -598,5 +667,7 @@ source "${BUILD_FUNCS_DIR%/}/_internalUse/lib-wrapping.inc.bash"
 declare -F app_init  &> /dev/null  && app_init   # Must be outside of the 'full' as it sets up things for the tree ..
 
 _xxa=0
+# |!!>| echo "!!> lib-app Calling" >&2
 doRunWithWrapping app_contentsFull "$@" || _xxa=$?
+# |!!>| echo "!!> lib-app returned[$0] with $_xxa" >&2
 exit "$_xxa"

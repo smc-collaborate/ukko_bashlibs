@@ -100,20 +100,27 @@ for file in "${EXE_DIR%/}/post-"*; do
 done
 
 dumpVersions  | withLeftBox
+
+helpTxt="${option_local_cmd_to_run[*]@Q}"
 if [[ "$return_value" != 0 ]] ; then
-    echo "⚠️  Command \`${option_local_cmd_to_run[*]@Q}\` failed."
+    echo "⚠️  Fail during run: $helpTxt"
 else
-    echo "ℹ️  Command \`${option_local_cmd_to_run[*]@Q}\` ran successfully."
+    echo "ℹ️  Successfully ran: $helpTxt"
 fi
-echo "Ran: ${option_local_cmd_to_run[*]} with exit code: $return_value" | withPrefix "  • " >&2
 if [[ "$option_exit" == "--exit=no" ]] || [[ "$option_exit" == "--exit=on-success" && "$return_value" != 0 ]] ; then
     echo "═══════════════════════════════════════════════════════════════════════════"
     echo " Staying in docker image [$option_exit]"
     echo " To exit, type: exit"
     echo "════════════════════"
-    bash
+    return_value=0
+    bash || return_value="$?"
 fi
-echo "ℹ️  Exiting docker image with: exitCode=$return_value" >&2
+
+if [[ "$return_value" == "0" ]] ; then
+    echo "ℹ️  Exiting docker image" >&2
+else
+    echo "⚠️  Exiting docker image with exitCode=$return_value" >&2
+fi
 echo "═══════════════════════════════════════════════════════════════════════════" >&2
 exit "$return_value"
 

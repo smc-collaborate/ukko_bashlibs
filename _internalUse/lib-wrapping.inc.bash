@@ -3,54 +3,53 @@
 
 #
 # Just has doRunWithWrapping() which does wrapping based on :
-#  RUN_WITH_WRAPPING_MODE='tree'
+#  RUN_WITH_WRAPPING_MODE='tree' 'left-boxed' or not set
 #
-if [[ "${RUN_WITH_WRAPPING_MODE:-}" != 'tree' ]] ; then
+if [[ "${RUN_WITH_WRAPPING_MODE:-}" == 'left-boxed' ]] ; then
     function doRunWithWrapping()
     {
         local _result=0
-        "$@" || _result="$?"
+        doRun-groupedOutput "$@" || _result="$?"
         return "$_result"
     }
-
-else
+elif [[ "${RUN_WITH_WRAPPING_MODE:-}" == 'tree' ]] ; then
 
     function doRunWithWrapping()
     {
-        # echo "ℹ️  Tree output mode enabled for ${APPS_NAME:-?APP?}" >&2
         treeOutput_Setup ""
         {
             local xxx=0
             "$@" || xxx="$?"
             return "$xxx"
-        } 2>&1 | withPrefix "${tree_prefix_mid}"
+        } 2>&1 | withPrefix "${output_prefix_mid}"
 
         _result="${PIPESTATUS[0]}"
         treeOutput_Done "$_result"
         return "$_result"
     }
-
     function treeOutput_Setup()
     {
         local title="${1:-}"
-        treeOutput_isBase='no'
-        tree_prefix_mid=""
-        tree_prefix_end=""
-
+        output_isBase='no'
+        output_prefix_mid=""
+        output_prefix_end=""
 
         if [[ -z "${BASE_TREE_SCRIPT:-}" ]] ; then
             export BASE_TREE_SCRIPT="$THIS_EXE"
-            treeOutput_isBase='yes'
+            output_isBase='yes'
         fi
-
         [[ -n "$title" ]] || title="Running:⚡  ${COLOUR[YELLOW_USED]:-}${CMD_AS_DISPLAY}${COLOUR[OFF_USED]:-}"
 
-        if [[ "${treeOutput_isBase}" == "yes" ]] ; then
-            echo -e "Full Process Started: ${title}"
+        if [[ "${output_isBase}" == "yes" ]] ; then
+            title="Full Process Started: ${title}"
+            output_isBase='no'
+            echo         -e "$title"
+            output_prefix_mid="│  "
+            output_prefix_end="└──"
         else
-            echo         -e "├── $title"
-            tree_prefix_mid="│   │  "
-            tree_prefix_end="│   "
+            echo         -e "$title"
+            output_prefix_mid="│  "
+            output_prefix_end="└──"
         fi
     }
 
@@ -71,9 +70,16 @@ else
             icon="❌  "
             suffix="Failed with error code $result_code"
         fi
-        [[ "${treeOutput_isBase}" != "yes" ]] && echo -n "${tree_prefix_end}└─ "
+        [[ "${output_isBase}" != "yes" ]] && echo -n "${output_prefix_end}"
         echo -en "${icon} "
-        [[ -n "${APPS_NAME:-}" ]] || echo -en "${APPS_NAME:-<APP>}: "
+        [[ -n "${APPS_NAME:-}" ]] || echo -en "${APPS_NAME:-"$CMD_AS_DISPLAY"}: "
         echo -e "$suffix"
+    }
+else
+    function doRunWithWrapping()
+    {
+        local _result=0
+        "$@" || _result="$?"
+        return "$_result"
     }
 fi

@@ -706,3 +706,32 @@ function dump_sharedCheckout_gitInfoOnDir()
     [[ "$_padTo" -gt 0 ]] && printf "%-*s" "$_padTo" ""
     echo -e "${COLOUR[VIVID_BLUE_STDOUT]:-}${gitInfo_description}${COLOUR[OFF_STDOUT]:-}$gitInfo_warning"
 }
+
+
+function paths_findLongestAncestor()
+{
+    # Split paths into arrays based on the forward slash
+    IFS='/' read -r -a path1 <<< "$1"
+    IFS='/' read -r -a path2 <<< "$2"
+
+    common=()
+
+    # Loop through the smaller array length
+    for ((i=0; i<${#path1[@]} && i<${#path2[@]}; i++)); do
+        if [[ "${path1[i]}" == "${path2[i]}" ]]; then
+            common+=("${path1[i]}")
+        else
+            break
+        fi
+    done
+
+    # Reconstruct the matching path segments
+    result=$(IFS='/'; echo "${common[*]}")
+
+    # Ensure root slash is preserved if it was an absolute path
+    if [[ "$1" == /* && "$result" != /* ]]; then
+        echo "/$result"
+    else
+        echo "$result"
+    fi
+}
