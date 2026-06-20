@@ -310,7 +310,7 @@ function param_int()
     [[ "$ref_name" == "$provided_name" ]] || return 1
 
     local caption="${!ref_name}[${min_value}…${max_value}]"
-    echo "ℹ️  $caption : Validating ${provided_value_txt@Q}"
+    print_extraVerbose "$caption : Validating ${provided_value_txt@Q}"
 
     [[ "$provided_value_txt" =~ ^[+-]?[0-9]+$ ]] || do_errorExitWithSuggestion "Invalid value for $caption: ${provided_value_txt@Q} is not an integer"
 
@@ -327,7 +327,7 @@ function app_load_param_validate_from_list()
     local value="$2"
 
     shift 2 || true
-    echo "ℹ️  app_load_param_validate_from_list[$name,$value]: ($*) : Validating value for $name$value against expected values: [$(asCsvList "$@")]" >&2
+    print_extraVerbose  "app_load_param_validate_from_list[$name,$value]: ($*) : Validating value for $name$value against expected values: [$(asCsvList "$@")]"
 
     for arg in "$@"; do
         [[ "$arg" == "$value" ]] && return 0
