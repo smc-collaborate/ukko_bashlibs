@@ -162,7 +162,7 @@ function do_completeBuildAndTesting()
     #
     # Step 1 - Clean  first ?
     #
-    if [[ ",--clean,--remove,--fresh,--uninstall," == *",${option_build_kind_param}," ]] ; then
+    if [[ ",--clean,--remove,--fresh,--uninstall," == *",${option_build_kind_param},"* ]] ; then
         doActions "AM_CLEANING=yes" || _fullResult="$?"
 
         if [[ -L "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" ]] ; then
