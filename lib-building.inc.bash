@@ -214,7 +214,6 @@ function do_completeBuildAndTesting()
             "${run_cmd[@]}" || runResult="$?"
             [[ "$runResult" -gt "$_fullResult" ]] && _fullResult="$runResult"
             echo -e "Ran    : ${COLOUR[VIVID_BLUE_USED]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_USED]:-}"
-            echo -e "⚠️  Warning - You may need to remove locally built files with '${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} --clean${COLOUR[OFF_USED]:-}' if there are local build artifacts"
         fi
     fi
 

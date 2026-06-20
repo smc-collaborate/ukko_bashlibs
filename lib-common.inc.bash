@@ -570,21 +570,18 @@ function asQuotedText()
     echo -n '"'
 }
 
-function extraVerboseLogging()
+function print_extraVerbose()
 {
-    true # echo "🛈  $*" >&2
-}
+    [[ "${UKKO_VERBOSITY:-}" == 'all' ]] || return 0
 
-function print_verbose()
-{
-    echo -e "ℹ️  $*" >&2
+    echo -e " ~~>| 🛈  $*" >&2
 }
 
 
 if [[ -z "${ORIG_PWD:-}" ]] ; then
   #|Logging| echo "🛈  Setting ORIG_PWD to [$(pwd)]"
   export ORIG_PWD ; ORIG_PWD="$(pwd)"
-  extraVerboseLogging "ORIG_PWD                   = [${ORIG_PWD}]"
+  print_extraVerbose "ORIG_PWD                   = [${ORIG_PWD}]"
 #|Logging|else
 #|Logging|  echo "🛈  ORIG_PWD already set to [${ORIG_PWD}]"
 fi
@@ -599,12 +596,12 @@ fi
 #|x|      THIS_EXE_FROM_ORIGINAL_PWD="./${THIS_EXE_FROM_ORIGINAL_PWD}"
 #|x|    fi
 #|x|  fi
-#|x|  extraVerboseLogging "THIS_EXE_FROM_ORIGINAL_PWD = [${THIS_EXE_FROM_ORIGINAL_PWD}]"
+#|x|  print_extraVerbose "THIS_EXE_FROM_ORIGINAL_PWD = [${THIS_EXE_FROM_ORIGINAL_PWD}]"
 #|x|fi
 
 if [[ -z "${ORIG_PARAMS:-}" ]] ; then
   export ORIG_PARAMS ; ORIG_PARAMS=("$@")
-  extraVerboseLogging "ORIG_PARAMS                = [${ORIG_PARAMS[*]}]"
+  print_extraVerbose "ORIG_PARAMS                = [${ORIG_PARAMS[*]}]"
 fi
 
 
