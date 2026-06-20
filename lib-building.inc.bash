@@ -165,11 +165,13 @@ function do_completeBuildAndTesting()
     if [[ ",--clean,--remove,--fresh,--uninstall," == *",${option_build_kind_param},"* ]] ; then
         doActions "AM_CLEANING=yes" || _fullResult="$?"
 
-        if [[ -L "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" ]] ; then
-            msg_suffix+="\n   Also removed link at $(displayPath "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT}" --link-src )"
-            do_remove_link "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" || _fullResult="$?"
-        else
-            msg_suffix+="\n   Didn't touch: $(quoteIfNeeded "$(displayPath "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" --link-src )")"
+        if [[ -n "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" ]] ; then
+            if [[ -L "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" ]] ; then
+                msg_suffix+="\n   Also removed link at $(displayPath "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT}" --link-src )"
+                do_remove_link "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" || _fullResult="$?"
+            else
+                msg_suffix+="\n   Didn't touch: $(quoteIfNeeded "$(displayPath "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" --link-src )")"
+            fi
         fi
         [[ "${_fullResult}" == 0 ]] && echo -e "   Clean done - All outputs cleaned${msg_suffix}"
 
