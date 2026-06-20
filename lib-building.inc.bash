@@ -55,18 +55,23 @@ BUILD_PARAMS=("$@")
 function app_help()
 {
     if [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] ; then
-        _msg1=" [--with-docker[=dry-run]]"
-        _msg2="   --with-docker[=dry-run]: Additionally re-run the build/test process in the docker containers: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
+        _msg1=" [--with-docker[=dry-run/={docker-image}]]"
+        _msg2=()
+        _msg2+=("   --with-docker          : Additionally re-run the build/test process in the docker containers: ${VERIFY_ON_BUILD_ENVIRONMENTS}\n")
+        _msg2+=("   --with-docker=dry-run  : As above, but as a dry run only")
+        _msg2+=("   --with-docker=[One of: ${VERIFY_ON_BUILD_ENVIRONMENTS}] : As above, but only in the specified docker image.  It stays in the docker image afterwards for testing")
     else
         _msg1=""
-        _msg2=""
+        _msg2=()
     fi
 
     echo "Usage: ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} [--remove | --fresh] [--with-tests]${_msg1} -- [other params for build functions ...]${COLOUR[OFF_USED]:-}"
     echo ""
     echo "   --with-tests[=on]    : Run tests after building"
     echo "   --with-tests=modules : Run tests after building - including module level tests recursively"
-    [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] && echo "${_msg2}"
+    for x in "${_msg2[@]}" ; do
+        echo "$x"
+    done
 
     echo ""
     echo "   --only=source_generate : Only generate sources without building applications or setting up virtual environments"
@@ -92,7 +97,7 @@ function app_init()
 
 function app_load_param_defaults()
 {
-    option_amVerifyingInDocker='no'
+    option_with_docker='no'
     option_with_tests="${RUN_TESTS_RECURSIVELY:-no}"   # This is exported so inherits the value in the calling shell
     option_build_kind_param=''
     option_stats='no'
@@ -111,7 +116,10 @@ function app_load_param_direct_value()
 function app_load_param_option_name_value()
 {
     if [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] ; then
-        param_choose_from_list "!with-docker" "$1" "$2" "dry-run" "yes" "no" && option_amVerifyingInDocker="${2:-yes}" && return 0
+
+        IFS=',' read -ra _docker_images_array <<< "$VERIFY_ON_BUILD_ENVIRONMENTS"
+
+        param_choose_from_list "!with-docker" "$1" "$2" "dry-run" "yes" "no" "${_docker_images_array[@]}" && option_with_docker="${2:-yes}" && return 0
     fi
     param_choose_from_list '!with-tests' "$1" "$2" "modules" "yes" "no" && option_with_tests="${2:-yes}" && return 0
     [[ "$1" == '--clean'      ]] && option_build_kind_param="$1" && return 0
@@ -197,7 +205,7 @@ function do_completeBuildAndTesting()
     # Step 4 - Repeat in docker if requested
     #
 
-    if [[ "$option_amVerifyingInDocker" != 'no' ]] ; then
+    if [[ "$option_with_docker" != 'no' ]] ; then
         if [[ "$_fullResult" != 0 ]] ; then
             echo "Process failed in host environment with result: $_fullResult"
             echo "Not running in docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
@@ -205,8 +213,14 @@ function do_completeBuildAndTesting()
             echo "Process completed in host environment with success"
             echo "Verifying that in the docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
 
-            run_cmd=(do-run-in-docker "$VERIFY_ON_BUILD_ENVIRONMENTS")
-            [[ "$option_amVerifyingInDocker" == 'dry-run' ]] && run_cmd+=(--dry-run)
+            run_cmd=(do-run-in-docker)
+            if [[ "$option_with_docker" == 'yes' ]] ; then
+                run_cmd+=("$VERIFY_ON_BUILD_ENVIRONMENTS" "--exit=yes")
+            elif  [[ "$option_with_docker" == 'dry-run' ]] ; then
+                run_cmd+=("$VERIFY_ON_BUILD_ENVIRONMENTS" "--dry-run")
+            else
+                run_cmd+=("$option_with_docker"           "--exit=no")
+            fi
             run_cmd+=(-- "${0}")
             for x in "${BUILD_PARAMS[@]}" ; do
                 [[ "$x" == '--with-docker'* ]] || run_cmd+=( "$x" )
