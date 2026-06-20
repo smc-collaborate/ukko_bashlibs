@@ -41,11 +41,11 @@ function pyApp_cleanIfNeeded()
 {
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         echo "   Cleaning python cache files" # from $(pwd)"
-        find "${EXE_DIR}" -name '.venv' | forceDelete "     "
-        find "${EXE_DIR}" -name '*.pyc' | forceDelete "     "
-        find "${EXE_DIR}" -name '*.pyo' | forceDelete "     "
-        find "${EXE_DIR}" -name '*.pyd' | forceDelete "     "
-        find "${EXE_DIR}" -name '__pycache__' | forceDelete "     "
+        find "${EXE_DIR}" -type d -name '.venv' | forceDelete "     "
+        find "${EXE_DIR}" -type d -name '__pycache__' | forceDelete "     "
+        find "${EXE_DIR}"         -name '*.pyc' | forceDelete "     "
+        find "${EXE_DIR}"         -name '*.pyo' | forceDelete "     "
+        find "${EXE_DIR}"         -name '*.pyd' | forceDelete "     "
     fi
 }
 
