@@ -598,13 +598,13 @@ function app_dumpInfo()
         dumpEntry_var "APPS_NAME"
         dumpEntry_var "SUGGEST_HOW_TO_INSTALL_TO_ROOT"
         dumpEntry_var "VERIFY_ON_BUILD_ENVIRONMENTS"
+        dumpEntry_var "PWD"
+        dumpEntry_var "ORIG_PWD"
+        dumpEntry_var "PROJ_DIR"
         dumpEntry_var "EXE_DIR"
         dumpEntry_var "EXE_DIR_AS_DISPLAY"
-        dumpEntry_var "PROJ_DIR"
         dumpEntry_var "APP_SELF_INSTALL"
         [[ "${INSTALLATION_NOTE:-[NotCopied]}" == "[NotCopied]" ]] || dumpEntry_var "INSTALLATION_NOTE"
-        dumpEntry_var "ORIG_PWD"
-        dumpEntry_var "PWD"
         dumpEntry_txt "colours"               "${UKKO_COLOURS_CHOSEN@Q}"
 
     } | withLeftBox >&2
