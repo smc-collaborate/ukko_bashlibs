@@ -54,7 +54,7 @@ function app_load_param_defaults()
     option_keys_dir='' ;   [[ -n "${HOME:-}" ]] && option_keys_dir="${HOME%/}/.ssh/"
     option_dry_run=''
     option_apt_get='no'
-    option_clean_workspace='auto'
+    option_do_clean_workspace='auto'
     option_cmd_to_run=()
 }
 function app_load_param_direct_value()
@@ -71,7 +71,7 @@ function app_load_param_option_name_value()
     [[ "$1" == '--workspace='     ]]           && option_workspace="$2"      && return 0
     [[ "$1" == '--keys-dir='      ]]           && option_keys_dir="$2"       && return 0
     [[ "$1" == '--dry-run'        ]]           && option_dry_run='yes'       && return 0
-    param_choose_from_list "clean-workspace"   "$1" "$2" "yes no auto force" && option_clean_workspace="${2}" && return 0
+    param_choose_from_list "do-clean-workspace"   "$1" "$2" "yes no auto force" && option_do_clean_workspace="${2}" && return 0
     param_choose_yes_no "exit"       "$1" "$2" && option_exit="$2"           && return 0
     param_choose_yes_no "!apt-get"   "$1" "$2" && option_apt_get="${2:-yes}" && return 0
     return 1
@@ -80,70 +80,50 @@ function app_load_param_option_name_value()
 
 function app_params_review()
 {
+    echo "app_params_review()"
     [[ -n "${option_docker_images}" ]] || do_errorExitWithSuggestion "Docker images not specified. Please specify at least one docker image to run with."
 
     [[ -n "${option_workspace}" ]] && return 0
+
+    print_extraVerbose "Determining workspace to mount into docker container..."
     option_workspace="$(realpath -m "$ORIG_PWD")"
     cmd="${option_cmd_to_run[0]:-}"
-    if [[ "$cmd" == "/"* ]] ; then
+    if [[ "$cmd" == *"/"* ]] ; then
         local longestAncestor
-        longestAncestor="$(paths_findLongestAncestor "$cmd" "$option_workspace")"
-        print_extraVerbose "Comparing cmd   : $cmd"
-        print_extraVerbose "~~> with      pwd   : $option_workspace"
-        print_extraVerbose "~~> Longest Ancestor: $longestAncestor"
+        cmd_expand="$(realpath -m "$cmd")"
+        longestAncestor="$(paths_findLongestAncestor "$cmd_expand" "$option_workspace")"
+        print_extraVerbose "Comparing cmd   : $cmd_expand"
+        print_extraVerbose "with      pwd   : $option_workspace"
+        print_extraVerbose "Chosen workspace: $longestAncestor"
         option_workspace="$longestAncestor"
     fi
     [[ -d "${option_workspace}" ]] || do_errorExitWithSuggestion "Workspace $(quoteIfNeeded "$option_workspace") is not valid"
-
-    if [[ "$option_clean_workspace" == 'auto' ]] ; then
+    if [[ "$option_do_clean_workspace" == 'auto' ]] ; then
         if [[ "$(id -u)" == 0 ]] ; then
-            print_extraVerbose "Auto-setting clean-workspace to 'no' since running as root user"
-            option_clean_workspace='no'
+            print_extraVerbose "Auto-setting do-clean-workspace to 'no' since running as root user"
+            option_do_clean_workspace='no'
         elif [[ -z "${HOME:-}" ]] ; then
-            print_extraVerbose "Auto-setting clean-workspace to 'no' since HOME environment variable is not set"
-            option_clean_workspace='no'
+            print_extraVerbose "Auto-setting do-clean-workspace to 'no' since HOME environment variable is not set"
+            option_do_clean_workspace='no'
         elif [[ "${option_workspace}" == "${HOME%/}/"* ]] ; then
-            print_extraVerbose "Auto-setting clean-workspace to 'yes' since workspace is under non-root home directory"
-            option_clean_workspace='yes'
+            print_extraVerbose "Auto-setting do-clean-workspace to 'yes' since workspace is under non-root home directory"
+            option_do_clean_workspace='yes'
         else
-            print_extraVerbose "Auto-setting clean-workspace to 'no' since workspace is not under non-root home directory"
-            option_clean_workspace='no'
+            print_extraVerbose "Auto-setting do-clean-workspace to 'no' since workspace is not under non-root home directory"
+            option_do_clean_workspace='no'
         fi
     fi
 
-    if [[ "$option_clean_workspace" == 'yes' ]] || [[ "$option_clean_workspace" == 'force' ]] ; then
+    if [[ "$option_do_clean_workspace" == 'yes' ]] || [[ "$option_do_clean_workspace" == 'force' ]] ; then
         [[ "$(id -u)" != 0 ]] || do_errorExitWithSuggestion "Cleaning workspace is not allowed for root user"
         [[ -n "${HOME:-}" ]] || do_errorExitWithSuggestion "Cleaning workspace is not allowed when HOME environment variable is not set"
         [[ "${option_workspace}" == "${HOME%/}/"* ]] || do_errorExitWithSuggestion "Cleaning workspace is only allowed for directories under the home directory for safety reasons.  Specified workspace: $(quoteIfNeeded "$option_workspace")"
     fi
 
-    review_workspace ""
+    review_workspace "AT_ENTRY"
 }
 
-function review_workspace()
-{
-    [[ "$option_clean_workspace" == 'no' ]] || return 0
-    readarray -t _users < <(find "$option_workspace" -type f -printf '%u\n' | sort -u)
 
-    local _numUsers="${#_users[@]}"
-
-    local issuesFound='no'
-    if [[ "$_numUsers" -gt 0 ]] ; then
-        local _current_user ; _current_user="$(id -un)"
-
-        for user in "${_users[@]}" ; do
-            if [[ "$user" != "$_current_user" ]] ; then
-                echo "⚠️  Warning - Workspace has files owned by ${user:-}"
-                issuesFound='yes'
-            fi
-        done
-    fi
-    if [[ "$issuesFound" == 'yes' ]] ; then
-        echo -e "⚠️  Warning - These issues may cause permission problems when running in docker with a different user.  Consider changing ownership of the workspace files to the current user or using '${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} --clean${COLOUR[OFF_USED]:-}' to remove all files in the workspace before exiting (if they are not needed)."
-
-        find "$option_workspace" \! -user "$(id -un)" -print | sed 's/^/⚠️    Entry: /'
-    fi
-}
 
 function app_run()
 {
@@ -203,18 +183,9 @@ function docker_run()
     ######
     #
     tmpdir_for_startup_script="$(mktemp -d '/tmp/runWithinImage_XXXX')"
-    cp -a "${EXE_DIR%/}/_internalUse/_in_docker_startup.sh" "${tmpdir_for_startup_script}/_startup.sh"
-
-    if [[ "${option_apt_get}" == "yes" ]] ; then
-       {
-            echo "#!/usr/bin/env bash"
-            echo "set -eu"
-            echo "apt-get update"
-            echo "apt-get install -y git"
-            echo "git config --global --add safe.directory /workspace#"
-            echo "cat /etc/os-release"
-        } | create_executable_run_script "pre-0001-apt-get-update-and-install-git.sh"
-    fi
+    runWithinDocker_setup "_in_docker_startup.sh" "_startup.sh"
+    [[ "${option_apt_get}" == "yes" ]] && runWithinDocker_setup "pre-001-apt-get-update-and-install-git.sh"
+    [[ "${option_do_clean_workspace}" != "no" ]] && runWithinDocker_setup "on-exit-001-clean-workspace.sh"
 
     docker_params+=("-v" "${tmpdir_for_startup_script%/}/:/startup")
     if [[ -n "${option_keys_dir:-}" ]]; then
@@ -251,7 +222,16 @@ function docker_run()
 
     rm -rf "${tmpdir_for_startup_script}"
 
+    review_workspace "AT_EXIT"
+
     return "$result"
+}
+
+function runWithinDocker_setup()
+{
+    local srcName="$1"
+    local runName="${2:-"$srcName"}"
+    cp -a "${EXE_DIR%/}/_internalUse/${srcName}" "${tmpdir_for_startup_script}/${runName}"
 }
 
 # shellcheck disable=SC2317
@@ -263,4 +243,123 @@ function create_executable_run_script()
 
     chmod +x "$script_path"
 }
+
+#################################################################################################################
+#
+# External access:
+#    * review_workspace "AT_ENTRY"  : To be called at the entry of the app (after parameters are loaded and reviewed) to review the workspace for potential issues before running in docker
+#    * review_workspace "AT_EXIT"   : To be called at the exit of the app (after running in docker) to review the workspace for potential issues after running in docker (e
+#
+function review_workspace()
+{
+    local when="$1"
+
+    [[ "$option_do_clean_workspace" == 'no' ]] && return 0
+
+    reviewWorkspace_init
+
+    reviewWorkspace_entry "$option_workspace"
+    print_extraVerbose "Reviewing Done"
+
+    # |x| for x in "${_workspace_review_messages[@]}" ; do
+    # |x|     echo "ℹ️  Note   : {workspace}/${x}"
+    # |x| done
+
+    # |x| for x in "${_workspace_review_entries_to_delete[@]}" ; do
+    # |x|     echo "⚡ !! Deletion suggested : {workspace}/${x}"
+    # |x| done
+
+    if [[ "$when" == "AT_ENTRY" ]] ; then
+        if [[ "${#_workspace_review_warnings[@]}" -gt 0 ]] || [[ "${#_workspace_review_entries_to_delete[@]}" -gt 0 ]] ; then
+            echo "⚠️  Reviewed workspace located at \`$(displayPath "$option_workspace")\` : Issues found:"
+            for x in "${_workspace_review_warnings[@]}" ; do
+                echo "   - Warning: {workspace}/${x}"
+            done
+            for x in "${_workspace_review_entries_to_delete[@]}" ; do
+                printf "   - {workspace}/%-30s %s\n" "${x}" "Root user entry - deletion suggested"
+            done
+            if [[ "$option_do_clean_workspace" == 'force' ]] ; then
+                echo "⚠️  '--clean-workspace=force' selected.  Continuing"
+            else
+                echo "    Please review the above issues re-running."
+                echo "     Your options are:"
+                echo "     1. Use '--clean-workspace=force' to ignore these issues and continue anyway"
+                echo "        Enforcing a clean workspace means that root files in the workspace will be deleted on exit"
+                echo "     2. Use '--clean-workspace=no'"
+                echo "        No files are deleted"
+                echo "     3. Manually fix the issues in the workspace"
+                echo "        (eg: By changing permissions or deleting root-owned files) and re-run without the warning"
+                exit 13
+            fi
+        fi
+    elif [[ "$when" == "AT_EXIT" ]] ; then
+        if [[ "${#_workspace_review_warnings[@]}" -gt 0 ]] ; then
+            echo "⚠️  Reviewed workspace: $(displayPath "$option_workspace") -- some non user ${_workspace_review_setting_current_user@Q} entries found:"
+            for x in "${_workspace_review_warnings[@]}" ; do
+                printf "  -  %-30s  [⚠️  Warning]\n" "${x}"
+            done
+
+            for x in "${_workspace_review_entries_to_delete[@]}" ; do
+                printf "  -  %-30s  [⚡  Root user entry - deletion suggested]\n" "${x}"
+            done
+        elif [[ "${#_workspace_review_entries_to_delete[@]}" -gt 0 ]] ; then
+            echo "⚠️  Reviewed workspace: $(displayPath "$option_workspace") -- some root entries found.  Deletion suggested:"
+            for x in "${_workspace_review_entries_to_delete[@]}" ; do
+                echo "  -  $x"
+            done
+        fi
+    else
+        echo "⚠️  Reviewed workspace: $(displayPath "$option_workspace") -- unknown review time '$when'"
+    fi
+}
+
+#
+#################################################################################################################
+
+function reviewWorkspace_init()
+{
+    _workspace_review_setting_current_user="$(id -un)"
+    _workspace_review_entries_to_delete=()
+    _workspace_review_warnings=()
+    # |x| _workspace_review_messages=()
+    print_extraVerbose "Reviewing $option_workspace for potential permission issues when running in docker: Expecting User [$_workspace_review_setting_current_user]"
+}
+function reviewWorkspace_entry()
+{
+    local fullPath="$1"
+
+    local file_user
+    file_user="$(stat -c '%U' "$fullPath")"
+
+    local workspacePart="${fullPath##"${option_workspace%/}/"}"
+
+    #print_extraVerbose " - Reviewing {workspace}/${workspacePart} : User $file_user"
+
+    if [[ "$file_user" != "$_workspace_review_setting_current_user" ]] ; then
+        if [[ "$file_user" == 'root' ]] ; then
+            print_extraVerbose "    Delete: Workspace:${workspacePart} : User=$file_user"
+            _workspace_review_entries_to_delete+=("${workspacePart}")
+            # |x| _workspace_review_messages+=("${workspacePart} : Clear root entry")
+        else
+            print_extraVerbose "    Warning: Workspace:${workspacePart} : User=$file_user"
+        fi
+        return 0
+    fi
+    [[ -f "$fullPath" ]] && return 0
+    if [[ ! -d "$fullPath" ]] ; then
+        print_extraVerbose "    Warnings: File Type"
+        _workspace_review_warnings+=("${workspacePart} :Not a regular file or directory")
+        return 0
+    fi
+
+    shopt -s dotglob
+    shopt -s nullglob
+
+    for entry in "$fullPath"/*; do
+        reviewWorkspace_entry "$entry"
+    done
+
+    return 0
+}
+
 source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/../lib-app.inc.bash"

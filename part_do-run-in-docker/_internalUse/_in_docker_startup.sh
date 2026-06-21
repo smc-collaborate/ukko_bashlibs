@@ -116,6 +116,13 @@ if [[ "$option_exit" == "--exit=no" ]] || [[ "$option_exit" == "--exit=on-succes
     bash || return_value="$?"
 fi
 
+
+for file in "${EXE_DIR%/}/on-exit-"*; do
+    if [ -x "$file" ]; then
+        echo "Processing: $file"
+        "$file" || echo "⚠️  Failed to execute $file, but continuing with the rest of the exit process."
+    fi
+done
 if [[ "$return_value" == "0" ]] ; then
     echo "ℹ️  Exiting docker image" >&2
 else
