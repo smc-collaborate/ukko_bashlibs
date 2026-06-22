@@ -44,9 +44,6 @@
 #| ╰─────────────────────────────────────────────────────────
 ############################
 
-
-
-
 APP_VERSION="v0.1.1"
 APP_DESCRIPTION="Build & Installs"
 
@@ -57,9 +54,10 @@ function app_help()
     if [[ -n "${VERIFY_ON_BUILD_ENVIRONMENTS:-}" ]] ; then
         _msg1=" [--with-docker[=dry-run/={docker-image}]]"
         _msg2=()
-        _msg2+=("   --with-docker          : Additionally re-run the build/test process in the docker containers: ${VERIFY_ON_BUILD_ENVIRONMENTS}\n")
-        _msg2+=("   --with-docker=dry-run  : As above, but as a dry run only")
-        _msg2+=("   --with-docker=[One of: ${VERIFY_ON_BUILD_ENVIRONMENTS}] : As above, but only in the specified docker image.  It stays in the docker image afterwards for testing")
+        _msg2+=("   --with-docker[=all]    : Additionally re-run the build/test process in the docker containers: ${VERIFY_ON_BUILD_ENVIRONMENTS}\n")
+        _msg2+=("   --with-docker=dry-run  : As 'above, but as a dry run only")
+        _msg2+=("   --with-docker=(One of: ${VERIFY_ON_BUILD_ENVIRONMENTS}) As above, but only in the specified docker image.  It stays in the docker image afterwards for testing")
+        _msg2+=("                           When 'all' is chosen, the standard build is done at the end as well")
     else
         _msg1=""
         _msg2=()
@@ -119,7 +117,7 @@ function app_load_param_option_name_value()
 
         IFS=',' read -ra _docker_images_array <<< "$VERIFY_ON_BUILD_ENVIRONMENTS"
 
-        param_choose_from_list "!with-docker" "$1" "$2" "dry-run" "yes" "no" "${_docker_images_array[@]}" && option_with_docker="${2:-yes}" && return 0
+        param_choose_from_list "!with-docker" "$1" "$2" "dry-run" "all" "no" "${_docker_images_array[@]}" && option_with_docker="${2:-all}" && return 0
     fi
     param_choose_from_list '!with-tests' "$1" "$2" "modules" "yes" "no" && option_with_tests="${2:-yes}" && return 0
     [[ "$1" == '--clean'      ]] && option_build_kind_param="$1" && return 0
@@ -130,7 +128,7 @@ function app_load_param_option_name_value()
     [[ "$1" == '--stats'  ]] && option_stats='yes' && return 0
 
     [[ "$1" == '--no-precommit'  ]] && option_precommit='no' && return 0
-    param_choose_from_list "--only" "$1" "$2" "source_generate" && option_only="$2" && return 0
+    param_choose_from_list "only" "$1" "$2" "source_generate" && option_only="$2" && return 0
 
     return 1
 }
@@ -167,6 +165,47 @@ function do_completeBuildAndTesting()
     local _fullResult=0
     local _doBuild='yes'
     local msg_suffix=''
+
+
+
+    #
+    # First: Do on docker if requested
+    #
+    if [[ "$option_with_docker" != 'no' ]] ; then
+        if [[ "$_fullResult" != 0 ]] ; then
+            echo "Process failed in host environment with result: $_fullResult"
+            echo "Not running in docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
+        else
+            echo "Process completed in host environment with success"
+            echo "Verifying that in the docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
+
+            run_cmd=(do-run-in-docker)
+            if [[ "$option_with_docker" == 'all' ]] ; then
+                run_cmd+=("$VERIFY_ON_BUILD_ENVIRONMENTS" "--exit=yes")
+            elif  [[ "$option_with_docker" == 'dry-run' ]] ; then
+                run_cmd+=("$VERIFY_ON_BUILD_ENVIRONMENTS" "--dry-run")
+            else
+                run_cmd+=("$option_with_docker"           "--exit=no")
+            fi
+            run_cmd+=(-- "${0}")
+            for x in "${BUILD_PARAMS[@]}" ; do
+                [[ "$x" == '--with-docker'* ]] || run_cmd+=( "$x" )
+            done
+            echo -e "Running: ${COLOUR[VIVID_BLUE_USED]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_USED]:-}"
+            local runResult=0
+            "${run_cmd[@]}" || runResult="$?"
+            [[ "$runResult" -gt "$_fullResult" ]] && _fullResult="$runResult"
+            echo -e "Ran    : ${COLOUR[VIVID_BLUE_USED]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_USED]:-}"
+        fi
+    fi
+
+    [[ "$option_with_docker" != 'no' ]] && [[ "$option_with_docker" != 'all' ]] && return "$_fullResult"
+
+    ##################################################################
+    #
+    # Do a build in the host environment
+    #
+
     #
     # Step 1 - Clean  first ?
     #
@@ -201,110 +240,9 @@ function do_completeBuildAndTesting()
         runTests || _fullResult="$?"
     fi
 
-    #
-    # Step 4 - Repeat in docker if requested
-    #
-
-    if [[ "$option_with_docker" != 'no' ]] ; then
-        if [[ "$_fullResult" != 0 ]] ; then
-            echo "Process failed in host environment with result: $_fullResult"
-            echo "Not running in docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
-        else
-            echo "Process completed in host environment with success"
-            echo "Verifying that in the docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
-
-            run_cmd=(do-run-in-docker)
-            if [[ "$option_with_docker" == 'yes' ]] ; then
-                run_cmd+=("$VERIFY_ON_BUILD_ENVIRONMENTS" "--exit=yes")
-            elif  [[ "$option_with_docker" == 'dry-run' ]] ; then
-                run_cmd+=("$VERIFY_ON_BUILD_ENVIRONMENTS" "--dry-run")
-            else
-                run_cmd+=("$option_with_docker"           "--exit=no")
-            fi
-            run_cmd+=(-- "${0}")
-            for x in "${BUILD_PARAMS[@]}" ; do
-                [[ "$x" == '--with-docker'* ]] || run_cmd+=( "$x" )
-            done
-            echo -e "Running: ${COLOUR[VIVID_BLUE_USED]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_USED]:-}"
-            local runResult=0
-            "${run_cmd[@]}" || runResult="$?"
-            [[ "$runResult" -gt "$_fullResult" ]] && _fullResult="$runResult"
-            echo -e "Ran    : ${COLOUR[VIVID_BLUE_USED]:-}$(quoteIfNeeded "${run_cmd[@]}")${COLOUR[OFF_USED]:-}"
-        fi
-    fi
 
     return "$_fullResult"
 }
-
-
-
-
-
-
-
-
-
-
-
-
-function do_protoGenerate_orClean()
-{
-    local msg_on_none_found="${1:-}"
-    local found_proto_file='no'
-
-    local dirsToReview=()
-
-    for relative_dir in . common  ; do
-        for fulldir in "${PROJ_DIR%/}/${relative_dir}/proto_"*/ ; do
-            #|Logging| echo "Checking for proto files in ${fulldir} ..."
-            [[ -d "${fulldir}" ]] && dirsToReview+=("${fulldir}")
-        done
-    done
-        for fulldir in "${dirsToReview[@]}" ; do
-        pushd "${fulldir}" >/dev/null || true
-            printable_dir="${fulldir#"${PROJ_DIR%/}"/}"
-            if [[ "${AM_CLEANING}" == 'yes' ]] && [[ -d "_generated" ]] ; then
-                echo "   Proto directory[$printable_dir] - Cleaning _generated directory"
-                echo '_generated' | forceDelete "           "
-            fi
-
-
-            if [[ "${AM_CLEANING}" != 'yes' ]] ; then
-                echo "   Proto directory[$printable_dir] - Generating protobuf code under _generated:"
-                for proto_file in *.proto; do
-                    [[ -f "$proto_file" ]] || continue
-                    echo "    • ${printable_dir%/}/$proto_file"
-                    found_proto_file='yes'
-                done
-                echo '_tmp_generated' | forceDelete "           "
-                mkdir -p _tmp_generated
-                if [[ "$(protoc --version)" == "libprotoc 3.12"*  ]] ; then
-                    # Very old version of protobuf
-                    # shellcheck disable=SC2035
-                    protoc --experimental_allow_proto3_optional --python_out _tmp_generated *.proto
-                else
-                    # shellcheck disable=SC2035
-                    protoc --python_out _tmp_generated *.proto
-                fi
-
-
-                readarray -t dirs <<< "$(find _tmp_generated -type d)"
-                for dir in "${dirs[@]}" ; do
-                    touch "${dir%/}/__init__.py"
-                done
-                touch "./__init__.py"
-                mkdir -p _generated
-                rsync -P -c -r _tmp_generated/* _generated | grep -v '^sending incremental file list$' || true
-                rm -rf _tmp_generated
-            fi
-
-        popd >/dev/null || true
-    done
-    [[ "${found_proto_file}" == 'no' ]] && [[ -n "${msg_on_none_found}" ]] && echo "${msg_on_none_found}"
-    return 0
-}
-
-
 
 function setupBuildEnvironment()
 {
@@ -552,6 +490,7 @@ source "${BUILD_FUNCS_DIR%/}/_internalUse/lib-git.inc.bash"
 source "${BUILD_FUNCS_DIR%/}/_internalUse/lib-building-ros.inc.bash"
 source "${BUILD_FUNCS_DIR%/}/_internalUse/lib-building-python.inc.bash"
 source "${BUILD_FUNCS_DIR%/}/_internalUse/lib-building-systemd.inc.bash"
+source "${BUILD_FUNCS_DIR%/}/_internalUse/lib-building-protobuf.inc.bash"
 
 
 source "${BUILD_FUNCS_DIR%/}/lib-app.inc.bash"

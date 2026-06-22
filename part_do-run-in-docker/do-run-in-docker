@@ -20,8 +20,8 @@ function app_help()
     echo -e "Usage : ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} <docker-images> [options] -- [cmd to run] [parameters for cmd..]${COLOUR[OFF_USED]:-}"
     echo ""
     echo "Options:  <docker-images>    : Docker images to use for testing"
-    echo "                               (e.g. 'ubuntu:22.04' -or 'ubuntu:22.04,ubuntu:24.04,ubuntu:26.04,ubuntu:latest')"
-    echo ""
+    echo "                               eg: 'ubuntu:22.04' -or 'ubuntu:22.04,ubuntu:24.04,ubuntu:26.04,ubuntu-apt:latest')"
+    echo "                                   An '-apt' suffix is supported to automatically build an image with apt-get done"
     echo "          --exit=<value>     : yes        = Always exit after running the command"
     echo "                               no         = Don't exit automatically after running the command"
     echo "                               on-success = Stay in docker if the command fails - otherwise exit"
@@ -71,7 +71,7 @@ function app_load_param_option_name_value()
     [[ "$1" == '--workspace='     ]]           && option_workspace="$2"      && return 0
     [[ "$1" == '--keys-dir='      ]]           && option_keys_dir="$2"       && return 0
     [[ "$1" == '--dry-run'        ]]           && option_dry_run='yes'       && return 0
-    param_choose_from_list "do-clean-workspace"   "$1" "$2" "yes no auto force" && option_do_clean_workspace="${2}" && return 0
+    param_choose_from_list "clean-workspace"   "$1" "$2" yes no auto force && option_do_clean_workspace="${2}" && return 0
     param_choose_yes_no "exit"       "$1" "$2" && option_exit="$2"           && return 0
     param_choose_yes_no "!apt-get"   "$1" "$2" && option_apt_get="${2:-yes}" && return 0
     return 1
@@ -80,7 +80,7 @@ function app_load_param_option_name_value()
 
 function app_params_review()
 {
-    echo "app_params_review()"
+    print_extraVerbose "app_params_review()"
     [[ -n "${option_docker_images}" ]] || do_errorExitWithSuggestion "Docker images not specified. Please specify at least one docker image to run with."
 
     [[ -n "${option_workspace}" ]] && return 0
@@ -142,20 +142,40 @@ function app_run()
     local results=()
     local overall_result_code=0
     local index=1
-    for img in "${docker_images_array[@]}" ; do
-        echo "Running image[$index]: $img"
-        local this_result=0
-        docker_run "$img" || this_result="$?"
+    local _img
+    local _imgAndTag
+    for _imgAndTag in "${docker_images_array[@]}" ; do
+        tag="${_imgAndTag#*:}"
+        [[ "$tag" == "$_imgAndTag" ]] && tag=""
+        [[ -z "$tag" ]] || tag=":$tag"
+        _img_pretag="${_imgAndTag%%:*}"
+        _img_pretagMarkLess="${_img_pretag/-apt/}"
+
+        local msgSuffix=''
+
+        if [[ "$_img_pretag" != "$_img_pretagMarkLess" ]] ; then
+            if [[ -n "$(docker images -q "${_imgAndTag}" 2>/dev/null)" ]] ; then
+                msgSuffix=" (${_imgAndTag} with 'apt-get' done)"
+            else
+                msgSuffix=" (Building from ${_imgAndTag} with 'apt-get' done)"
+                image_with_apt "${_img_pretagMarkLess}${tag}" "${_imgAndTag}" || do_errorExitWithSuggestion "Failed to update image[with apt-get]: ${_img_pretagMarkLess}${tag} → ${_imgAndTag}"
+            fi
+        fi
+        # |x|echo "Running image[$index]: ${_imgAndTag}${msgSuffix}"
         local _msg
         if [[ "${option_dry_run:-}" == 'yes' ]] ; then
-            _msg="ℹ️  Docker[$img] dry-run       : $(quoteIfNeeded "${docker_params[@]}")"
-        elif [[ "$this_result" == 0 ]]; then
-            _msg="✅  Docker[$img] run succeeded : [workspace=$(displayPath "$option_workspace")] $(quoteIfNeeded "${local_cmd_to_run[@]}")"
+            _msg="ℹ️  Docker[${_imgAndTag}${msgSuffix}] dry-run       : $(quoteIfNeeded "${docker_params[@]}")"
         else
-            _msg="❌  Docker[$img] run failed    : $(quoteIfNeeded "${docker_params[@]}")"
-            [[ "$this_result" != 1 ]] && _msg+="  [Exit code: $this_result]"
-        fi
+             local this_result=0
+            docker_run "${_imgAndTag}" || this_result="$?"
 
+            if [[ "$this_result" == 0 ]]; then
+                _msg="✅  Docker[${_imgAndTag}${msgSuffix}] run succeeded : [workspace=$(displayPath "$option_workspace")] $(quoteIfNeeded "${local_cmd_to_run[@]}")"
+            else
+                _msg="❌  Docker[${_imgAndTag}${msgSuffix}] run failed    : $(quoteIfNeeded "${docker_params[@]}")"
+                [[ "$this_result" != 1 ]] && _msg+="  [Exit code: $this_result]"
+            fi
+        fi
         [[ "$this_result" == 0 ]] || overall_result_code="$this_result"
 
         results+=("$_msg")
@@ -172,13 +192,71 @@ function app_run()
     return "$overall_result_code"
 }
 
+function image_with_apt()
+{
+    local srcImage="$1"
+    local dstImage="${2:-}"
+
+    if [[ -z "$dstImage" ]] ; then
+        dstImage="${srcImage/:/-apt:}"
+
+        [[ "$dstImage" != "$srcImage" ]] || dstImage="${srcImage}-apt"
+    fi
+    echo "Adding apt to image: $srcImage → $dstImage"
+
+    local _dir  ; _dir="$(mktemp -d '/tmp/tmp-ukko-docker-XXXXXX')"
+
+    {
+        echo "FROM $srcImage"
+        echo ""
+        echo "RUN apt-get update && \\"
+        echo "    apt-get upgrade -y && \\"
+        echo "    apt-get install -y --no-install-recommends \\"
+        echo "        curl wget \\"
+        echo "        ca-certificates"
+        #echo "        ca-certificates && rm -rf /var/lib/apt/lists/*"
+        echo ""
+        echo 'CMD ["/bin/bash"]'
+    } > "${_dir}/dockerfile"
+
+    cd "${_dir}"
+
+
+    docker_params=(docker build)
+    docker_params_append_required
+    docker_params+=("-t" "$dstImage" "${_dir}")
+
+    local result=0
+    "${docker_params[@]}" || result="$?"
+
+    if [[ "$result" == "0" ]] ; then
+        echo "ℹ️  Docker build ${dstImage@Q} succeeded" >&2
+        return 0
+    else
+        echo "❌  Docker build ${dstImage@Q} failed.  exitCode= $result" >&2
+        exit "$result"
+    fi
+
+}
+
+function docker_params_append_required()
+{
+
+    docker_params+=("--network" "host")
+    # |local dns ; dns="$(grep nameserver < /etc/resolv.conf | awk '{print $2}')"
+    # |[[ -n "$dns" ]] && docker_params+=("--dns" "$dns")
+}
+
 function docker_run()
 {
     local docker_image="$1"
 
     option_workspace="$(realpath -m "${option_workspace}")"
 
-    docker_params=(docker run -it)
+
+    docker_params=(docker run)
+    docker_params_append_required
+    docker_params+=("-it")
 
     ######
     #
@@ -211,14 +289,14 @@ function docker_run()
 
     [[ -n "${option_dry_run:-}" ]] && echo "Dry-run mode enabled, not executing the docker command." && return 0
 
-    local result=0
-    "${docker_params[@]}" || result="$?"
+        local result=0
+        "${docker_params[@]}" || result="$?"
 
-    if [[ "$result" == "0" ]] ; then
-        echo "ℹ️  Returned from docker with: exitCode= $result" >&2
-    else
-        echo "❌  Returned from docker with: exitCode= $result" >&2
-    fi
+        if [[ "$result" == "0" ]] ; then
+            echo "ℹ️  Returned from docker with: exitCode= $result" >&2
+        else
+            echo "❌  Returned from docker with: exitCode= $result" >&2
+        fi
 
     rm -rf "${tmpdir_for_startup_script}"
 
@@ -269,14 +347,42 @@ function review_workspace()
     # |x|     echo "⚡ !! Deletion suggested : {workspace}/${x}"
     # |x| done
 
+    local workdispPath
+    workdispPath="$(displayPath "$option_workspace")"
+    workdispPath="${workdispPath%/}"
     if [[ "$when" == "AT_ENTRY" ]] ; then
         if [[ "${#_workspace_review_warnings[@]}" -gt 0 ]] || [[ "${#_workspace_review_entries_to_delete[@]}" -gt 0 ]] ; then
-            echo "⚠️  Reviewed workspace located at \`$(displayPath "$option_workspace")\` : Issues found:"
+            echo "⚠️  Reviewed workspace located at \`$workdispPath\` : Issues found:"
             for x in "${_workspace_review_warnings[@]}" ; do
-                echo "   - Warning: {workspace}/${x}"
+                echo "   - Warning: ${workdispPath}/${x}"
             done
             for x in "${_workspace_review_entries_to_delete[@]}" ; do
-                printf "   - {workspace}/%-30s %s\n" "${x}" "Root user entry - deletion suggested"
+
+                local _delPathDisp
+                local _delPath
+                _delPath="${option_workspace%/}/${x}"
+                _delPathDisp="$(displayPath "$_delPath")"
+
+                local _kind
+                local _suggestion
+
+                if [[ -L "$_delPath" ]] ; then
+                    _kind="link"
+                    _suggestion="sudo unlink"
+                elif [[ -f "$_delPath" ]] ; then
+                    _kind="file"
+                    _suggestion="sudo rm -f"
+                elif [[ -d "$_delPath" ]] ; then
+                    _kind="directory"
+                    _suggestion="sudo rm -rf"
+                    _delPathDisp+="/"
+                else
+                    _kind="entry"
+                    _suggestion="⚠️ Review"
+                fi
+                printf "   - Root %-10s - Suggest: ", "$kind"
+                echo -e "${COLOUR[VIVID_BLUE_USED]:-}${_suggestion} ${_delPathDisp}${COLOUR[OFF_USED]:-}"
+
             done
             if [[ "$option_do_clean_workspace" == 'force' ]] ; then
                 echo "⚠️  '--clean-workspace=force' selected.  Continuing"
@@ -345,6 +451,7 @@ function reviewWorkspace_entry()
         fi
         return 0
     fi
+    [[ -L "$fullPath" ]] && return 0
     [[ -f "$fullPath" ]] && return 0
     if [[ ! -d "$fullPath" ]] ; then
         print_extraVerbose "    Warnings: File Type"

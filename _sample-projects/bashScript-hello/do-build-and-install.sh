@@ -1,6 +1,6 @@
 #!/bin/bash -eu
 
-export VERIFY_ON_BUILD_ENVIRONMENTS="ubuntu:22.04,ubuntu:24.04,ubuntu:26.04,ubuntu:latest"
+export VERIFY_ON_BUILD_ENVIRONMENTS="ubuntu-apt:22.04,ubuntu-apt:24.04,ubuntu-apt:26.04,ubuntu-apt:latest"
 
 
 function apps_doInstallOrClean()

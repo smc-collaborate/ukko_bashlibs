@@ -6,12 +6,18 @@ eg:
 
 `hello --person=Mary`
 
-
 Built and tested on:
  * ubuntu:**22.04**
  * ubuntu:**24.04**
  * ubuntu:**26.04**
  * ubuntu:**latest**
+
+## Installing
+
+| Action                                | Command                                                    | Hint
+|---------------------------------------|------------------------------------------------------------|--------------------------------------------
+| Install                               | **`./do-build-and-install.sh`**                            |  ⭐  Make 'hello' available to you
+| Uninstall                             | **`./do-build-and-install.sh  --remove`**                  |
 
 ## Sample Help ##
 
@@ -27,14 +33,6 @@ Built and tested on:
 │      --colours=no|yes  (Default 'yes')
 ╰───────────────────────────────────────────────────────────────────────
 ```
-
-## Installing
-
-| Action                                | Command                                                    | Hint
-|---------------------------------------|------------------------------------------------------------|--------------------------------------------
-| Install                               | **`./do-build-and-install.sh`**                            |  ⭐  Make 'hello' available to you
-| Uninstall                             | **`./do-build-and-install.sh  --remove`**                  |
-
 ## Development
 
 See **[docs/readme-dev.md](docs/readme-dev.md)**

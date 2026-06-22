@@ -17,11 +17,17 @@ function remove_root_owned_files()
     local file_user
     file_user="$(stat -c '%U' "$fullPath")"
 
-    if [[ "$file_user" == 'root' ]] ; then
+    if [[ "$fullPath" != "/workspace" ]] && [[ "$file_user" == 'root' ]] ; then
         echo " - Removing: $fullPath  -- User=root"
-        # rm -rf "$fullPath"
+        if  [[ -L "$fullPath" ]]; then
+            unlink "$fullPath"
+        else
+            rm -rf "$fullPath"
+        fi
         return 0
     fi
+
+    [[ -L "$fullPath" ]] && return 0
     [[ -f "$fullPath" ]] && return 0
     if [[ ! -d "$fullPath" ]] ; then
         echo " - $fullPath :    Warnings: File Type"

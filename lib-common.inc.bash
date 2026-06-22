@@ -628,6 +628,9 @@ if [[ -z "${THIS_EXE:-}" ]] ; then
 
     THIS_EXE="$(realpath -m "${THIS_EXE}")"
 fi
+if [[ -z "${THIS_DIR:-}" ]] ; then
+    THIS_DIR="$(dirname "$(realpath -m "${THIS_EXE}")")"
+fi
 [[ -n "${EXE_DIR:-}"  ]] || EXE_DIR="$(realpath -m "$(dirname "${THIS_EXE}")")"
 [[ -n "${PROJ_DIR:-}" ]] || PROJ_DIR="$(realpath -m "${EXE_DIR%/}/${PROJ_DIR_REL:-}")"
 # shellcheck disable=SC2034
