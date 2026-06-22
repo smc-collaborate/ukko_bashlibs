@@ -183,7 +183,10 @@ function displayPath()
     local result
 
     if [[ -n "$pathToReview" ]] ; then
-        orig="$(realpath "${pathToReview}")"
+        if ! orig="$(realpath "${pathToReview}" 2>/dev/null)" ; then
+            echo "$pathToReview  [⚠️  Path issue]"
+            return 0
+        fi
         relPath="$(realpath --relative-to="${ORIG_PWD%/}/" "${orig}")"
     fi
     result="${orig/#$HOME/\~}"
