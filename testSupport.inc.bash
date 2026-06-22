@@ -1,6 +1,12 @@
 # shellcheck disable=all
 # source this file - not a script to run directly
-echo "⚠️  ℹ️  ❓  Deprecated - REFACTOR TO USE 'lib-test-funcs.inc.bash' instead" >&2
+{
+    echo "❓  | Deprecated - use 'lib-testing.inc.bash' instead of 'utils.inc.bash'"
+    echo "❓  | Path:"
+    for x in "${BASH_SOURCE[@]}" ; do
+        echo "❓  |   - $x"
+    done
+} >&2
 
 libSupport_testName=""
 libSupport_testCmd=""
@@ -648,8 +654,8 @@ function doTest_compare_annotated_files()
     doCmd_check_stdOut annotatedData "$@" || true
 }
 
-if [[ -n "${THIS_DIR:-}" ]] ; then
-    export PARENT_DIR ; PARENT_DIR="$(dirname "${THIS_DIR}")"
+if [[ -n "${EXE_DIR:-}" ]] ; then
+    export PARENT_DIR ; PARENT_DIR="$(dirname "${EXE_DIR}")"
     export SAMPLES_DIR="${PARENT_DIR}/samples"
 
     set +e

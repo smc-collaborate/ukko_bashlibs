@@ -1,0 +1,477 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2317
+
+set -eu
+############################################################
+# This is basically equivalent to:
+#
+# docker run -it -v "$(pwd)":/app "ubuntu:24.04" bash
+#
+#    root@ab92bb7bcd54:/# cd app
+#    root@ab92bb7bcd54:/app# do-full-install-from-blank.sh
+#
+############################################################
+
+APP_VERSION="0.0.1"
+APP_DESCRIPTION="Runs a command on a docker image with some supportive extras (e.g. copying ssh keys, mounting the app directory, etc.)"
+
+function app_help()
+{
+    echo -e "Usage : ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} <docker-images> [options] -- [cmd to run] [parameters for cmd..]${COLOUR[OFF_USED]:-}"
+    echo ""
+    echo "Options:  <docker-images>    : Docker images to use for testing"
+    echo "                               eg: 'ubuntu:22.04' -or 'ubuntu:22.04,ubuntu:24.04,ubuntu:26.04,ubuntu-apt:latest')"
+    echo "                                   An '-apt' suffix is supported to automatically build an image with apt-get done"
+    echo "          --exit=<value>     : yes        = Always exit after running the command"
+    echo "                               no         = Don't exit automatically after running the command"
+    echo "                               on-success = Stay in docker if the command fails - otherwise exit"
+    echo "                                            (Default is 'on-success' for a single image, otherwise 'yes')"
+    echo ""
+    echo "          --keys-dir=<dir>   : The directory containing SSH keys that the container may use"
+    echo "                               (Default: ~/.ssh/)"
+    echo "          --workspace=<dir>  : The directory to be mapped to '/workspace' inside the container"
+    echo "                               (Default: $(displayPath "$ORIG_PWD"))"
+    echo "          --clean-workspace=yes/no/auto/force  : Clean the workspace directory (and below) before exiting of root files"
+    echo "                               (These are likely newly generated.  This is only available for files under ~/)"
+    echo "          --apt-get=yes      : Perform \`apt-get update\` and steps"
+    echo ""
+    echo "          --dry-run          : Does a dry-run without actually executing the command (useful for experiments)"
+    echo ""
+    echo -e "Example  : ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:22.04 --exit=no  cat /etc/os-release${COLOUR[OFF_USED]:-}"
+
+    readarray -t _builders < <(find "$ORIG_PWD" -mindepth 1 -maxdepth 1 -type f -executable -name '*do-build*')
+
+    for cmd in "${_builders[@]}" ; do
+        echo -e "           ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} ubuntu:22.04,ubuntu:24.04,ubuntu:26.04,ubuntu:latest  -- ./${cmd##*/} --with-tests${COLOUR[OFF_USED]:-}"
+    done
+}
+
+function app_load_param_defaults()
+{
+    option_docker_images=''
+    option_exit='default'
+    option_workspace=""
+    option_keys_dir='' ;   [[ -n "${HOME:-}" ]] && option_keys_dir="${HOME%/}/.ssh/"
+    option_dry_run=''
+    option_apt_get='no'
+    option_do_clean_workspace='auto'
+    option_cmd_to_run=()
+}
+function app_load_param_direct_value()
+{
+    [[ -z "${option_docker_images:-}" ]] && option_docker_images="$1" && return 0
+
+    option_cmd_to_run+=("$1")
+    return 0
+}
+
+function app_load_param_option_name_value()
+{
+    [[ "$1" == '--docker-images=' ]]           && option_docker_images="$2"  && return 0
+    [[ "$1" == '--workspace='     ]]           && option_workspace="$2"      && return 0
+    [[ "$1" == '--keys-dir='      ]]           && option_keys_dir="$2"       && return 0
+    [[ "$1" == '--dry-run'        ]]           && option_dry_run='yes'       && return 0
+    param_choose_from_list "clean-workspace"   "$1" "$2" yes no auto force && option_do_clean_workspace="${2}" && return 0
+    param_choose_yes_no "exit"       "$1" "$2" && option_exit="$2"           && return 0
+    param_choose_yes_no "!apt-get"   "$1" "$2" && option_apt_get="${2:-yes}" && return 0
+    return 1
+}
+
+
+function app_params_review()
+{
+    print_extraVerbose "app_params_review()"
+    [[ -n "${option_docker_images}" ]] || do_errorExitWithSuggestion "Docker images not specified. Please specify at least one docker image to run with."
+
+    [[ -n "${option_workspace}" ]] && return 0
+
+    print_extraVerbose "Determining workspace to mount into docker container..."
+    option_workspace="$(realpath -m "$ORIG_PWD")"
+    cmd="${option_cmd_to_run[0]:-}"
+    if [[ "$cmd" == *"/"* ]] ; then
+        local longestAncestor
+        cmd_expand="$(realpath -m "$cmd")"
+        longestAncestor="$(paths_findLongestAncestor "$cmd_expand" "$option_workspace")"
+        print_extraVerbose "Comparing cmd   : $cmd_expand"
+        print_extraVerbose "with      pwd   : $option_workspace"
+        print_extraVerbose "Chosen workspace: $longestAncestor"
+        option_workspace="$longestAncestor"
+    fi
+    [[ -d "${option_workspace}" ]] || do_errorExitWithSuggestion "Workspace $(quoteIfNeeded "$option_workspace") is not valid"
+    if [[ "$option_do_clean_workspace" == 'auto' ]] ; then
+        if [[ "$(id -u)" == 0 ]] ; then
+            print_extraVerbose "Auto-setting do-clean-workspace to 'no' since running as root user"
+            option_do_clean_workspace='no'
+        elif [[ -z "${HOME:-}" ]] ; then
+            print_extraVerbose "Auto-setting do-clean-workspace to 'no' since HOME environment variable is not set"
+            option_do_clean_workspace='no'
+        elif [[ "${option_workspace}" == "${HOME%/}/"* ]] ; then
+            print_extraVerbose "Auto-setting do-clean-workspace to 'yes' since workspace is under non-root home directory"
+            option_do_clean_workspace='yes'
+        else
+            print_extraVerbose "Auto-setting do-clean-workspace to 'no' since workspace is not under non-root home directory"
+            option_do_clean_workspace='no'
+        fi
+    fi
+
+    if [[ "$option_do_clean_workspace" == 'yes' ]] || [[ "$option_do_clean_workspace" == 'force' ]] ; then
+        [[ "$(id -u)" != 0 ]] || do_errorExitWithSuggestion "Cleaning workspace is not allowed for root user"
+        [[ -n "${HOME:-}" ]] || do_errorExitWithSuggestion "Cleaning workspace is not allowed when HOME environment variable is not set"
+        [[ "${option_workspace}" == "${HOME%/}/"* ]] || do_errorExitWithSuggestion "Cleaning workspace is only allowed for directories under the home directory for safety reasons.  Specified workspace: $(quoteIfNeeded "$option_workspace")"
+    fi
+
+    review_workspace "AT_ENTRY"
+}
+
+
+
+function app_run()
+{
+    IFS=',' read -ra docker_images_array <<< "$option_docker_images"
+
+    [[ "${#docker_images_array[@]}" == 0 ]] && do_errorExitWithSuggestion "Docker images not specified"
+
+    if [[ "$option_exit" == 'default' ]] ; then
+        if [[ "${#docker_images_array[@]}" == 1 ]] ; then
+            option_exit='on-success'
+        else
+            option_exit='yes'
+        fi
+    fi
+
+    local results=()
+    local overall_result_code=0
+    local index=1
+    local _img
+    local _imgAndTag
+    for _imgAndTag in "${docker_images_array[@]}" ; do
+        tag="${_imgAndTag#*:}"
+        [[ "$tag" == "$_imgAndTag" ]] && tag=""
+        [[ -z "$tag" ]] || tag=":$tag"
+        _img_pretag="${_imgAndTag%%:*}"
+        _img_pretagMarkLess="${_img_pretag/-apt/}"
+
+        local msgSuffix=''
+
+        if [[ "$_img_pretag" != "$_img_pretagMarkLess" ]] ; then
+            if [[ -n "$(docker images -q "${_imgAndTag}" 2>/dev/null)" ]] ; then
+                msgSuffix=" (${_imgAndTag} with 'apt-get' done)"
+            else
+                msgSuffix=" (Building from ${_imgAndTag} with 'apt-get' done)"
+                image_with_apt "${_img_pretagMarkLess}${tag}" "${_imgAndTag}" || do_errorExitWithSuggestion "Failed to update image[with apt-get]: ${_img_pretagMarkLess}${tag} → ${_imgAndTag}"
+            fi
+        fi
+        # |x|echo "Running image[$index]: ${_imgAndTag}${msgSuffix}"
+        local _msg
+        if [[ "${option_dry_run:-}" == 'yes' ]] ; then
+            _msg="ℹ️  Docker[${_imgAndTag}${msgSuffix}] dry-run       : $(quoteIfNeeded "${docker_params[@]}")"
+        else
+             local this_result=0
+            docker_run "${_imgAndTag}" || this_result="$?"
+
+            if [[ "$this_result" == 0 ]]; then
+                _msg="✅  Docker[${_imgAndTag}${msgSuffix}] run succeeded : [workspace=$(displayPath "$option_workspace")] $(quoteIfNeeded "${local_cmd_to_run[@]}")"
+            else
+                _msg="❌  Docker[${_imgAndTag}${msgSuffix}] run failed    : $(quoteIfNeeded "${docker_params[@]}")"
+                [[ "$this_result" != 1 ]] && _msg+="  [Exit code: $this_result]"
+            fi
+        fi
+        [[ "$this_result" == 0 ]] || overall_result_code="$this_result"
+
+        results+=("$_msg")
+        ((index++))
+    done
+    echo ""
+    {
+        echo "Overview:"
+        for msg in "${results[@]}" ; do
+            echo "$msg"
+        done
+    } >&2
+    [[ "$option_dry_run" != 'yes' ]] && ! command -v docker &> /dev/null && do_errorExitWithSuggestion "Docker is not installed or not in PATH. Please install Docker to use this app."
+    return "$overall_result_code"
+}
+
+function image_with_apt()
+{
+    local srcImage="$1"
+    local dstImage="${2:-}"
+
+    if [[ -z "$dstImage" ]] ; then
+        dstImage="${srcImage/:/-apt:}"
+
+        [[ "$dstImage" != "$srcImage" ]] || dstImage="${srcImage}-apt"
+    fi
+    echo "Adding apt to image: $srcImage → $dstImage"
+
+    local _dir  ; _dir="$(mktemp -d '/tmp/tmp-ukko-docker-XXXXXX')"
+
+    {
+        echo "FROM $srcImage"
+        echo ""
+        echo "ARG DEBIAN_FRONTEND=noninteractive"
+        echo "RUN apt-get update && \\"
+        echo "    apt-get upgrade -y && \\"
+        echo "    apt-get install -y \\"
+        echo "        curl wget \\"
+        echo "        git ssh \\"
+        echo "        jq xxd \\"
+        echo "        python3 python3-pip python3-venv \\"
+        echo "        ca-certificates"
+        #echo "        ca-certificates && rm -rf /var/lib/apt/lists/*"
+        echo ""
+        echo 'CMD ["/bin/bash"]'
+    } > "${_dir}/dockerfile"
+
+    cd "${_dir}"
+
+
+    docker_params=(docker build)
+    docker_params_append_required
+    docker_params+=("-t" "$dstImage" "${_dir}")
+
+    local result=0
+    "${docker_params[@]}" || result="$?"
+
+    if [[ "$result" == "0" ]] ; then
+        echo "ℹ️  Docker build ${dstImage@Q} succeeded" >&2
+        return 0
+    else
+        echo "❌  Docker build ${dstImage@Q} failed.  exitCode= $result" >&2
+        exit "$result"
+    fi
+
+}
+
+function docker_params_append_required()
+{
+
+    docker_params+=("--network" "host")
+    # |local dns ; dns="$(grep nameserver < /etc/resolv.conf | awk '{print $2}')"
+    # |[[ -n "$dns" ]] && docker_params+=("--dns" "$dns")
+}
+
+function docker_run()
+{
+    local docker_image="$1"
+
+    option_workspace="$(realpath -m "${option_workspace}")"
+
+
+    docker_params=(docker run)
+    docker_params_append_required
+    docker_params+=("-it")
+
+    ######
+    #
+    tmpdir_for_startup_script="$(mktemp -d '/tmp/runWithinImage_XXXX')"
+    runWithinDocker_setup "_in_docker_startup.sh" "_startup.sh"
+    [[ "${option_apt_get}" == "yes" ]] && runWithinDocker_setup "pre-001-apt-get-update-and-install-git.sh"
+    [[ "${option_do_clean_workspace}" != "no" ]] && runWithinDocker_setup "on-exit-001-clean-workspace.sh"
+
+    docker_params+=("-v" "${tmpdir_for_startup_script%/}/:/startup")
+    if [[ -n "${option_keys_dir:-}" ]]; then
+        mkdir -p "${tmpdir_for_startup_script}/ssh_keys"
+        cp -a "${option_keys_dir%/}/"* "${tmpdir_for_startup_script}/ssh_keys/"
+    fi
+    #
+    ######
+    [[ -n "${option_workspace:-}"  ]] && docker_params+=("-v" "${option_workspace%/}/:/workspace")
+    docker_params+=("${docker_image}")
+    docker_params+=("bash" "/startup/_startup.sh" "--exit=${option_exit}")
+    local_cmd_to_run=()
+    for arg in "${option_cmd_to_run[@]}" ; do
+        if [[ "$arg" == "${option_workspace%/}/"* ]] ; then
+            arg="/workspace/${arg#"${option_workspace%/}"/}"
+        fi
+        local_cmd_to_run+=("$arg")
+    done
+
+    [[ "${#local_cmd_to_run[@]}" -gt 0 ]] && docker_params+=("run:" "${local_cmd_to_run[@]}")
+
+    echo "             -> $(quoteIfNeeded "${docker_params[@]}")"
+
+    [[ -n "${option_dry_run:-}" ]] && echo "Dry-run mode enabled, not executing the docker command." && return 0
+
+        local result=0
+        "${docker_params[@]}" || result="$?"
+
+        if [[ "$result" == "0" ]] ; then
+            echo "ℹ️  Returned from docker with: exitCode= $result" >&2
+        else
+            echo "❌  Returned from docker with: exitCode= $result" >&2
+        fi
+
+    rm -rf "${tmpdir_for_startup_script}"
+
+    review_workspace "AT_EXIT"
+
+    return "$result"
+}
+
+function runWithinDocker_setup()
+{
+    local srcName="$1"
+    local runName="${2:-"$srcName"}"
+    cp -a "${EXE_DIR%/}/_internalUse/${srcName}" "${tmpdir_for_startup_script}/${runName}"
+}
+
+# shellcheck disable=SC2317
+function create_executable_run_script()
+{
+    local script_path="${tmpdir_for_startup_script%/}/${1}"
+
+    cat > "$script_path"
+
+    chmod +x "$script_path"
+}
+
+#################################################################################################################
+#
+# External access:
+#    * review_workspace "AT_ENTRY"  : To be called at the entry of the app (after parameters are loaded and reviewed) to review the workspace for potential issues before running in docker
+#    * review_workspace "AT_EXIT"   : To be called at the exit of the app (after running in docker) to review the workspace for potential issues after running in docker (e
+#
+function review_workspace()
+{
+    local when="$1"
+
+    [[ "$option_do_clean_workspace" == 'no' ]] && return 0
+
+    reviewWorkspace_init
+
+    reviewWorkspace_entry "$option_workspace"
+    print_extraVerbose "Reviewing Done"
+
+    # |x| for x in "${_workspace_review_messages[@]}" ; do
+    # |x|     echo "ℹ️  Note   : {workspace}/${x}"
+    # |x| done
+
+    # |x| for x in "${_workspace_review_entries_to_delete[@]}" ; do
+    # |x|     echo "⚡ !! Deletion suggested : {workspace}/${x}"
+    # |x| done
+
+    local workdispPath
+    workdispPath="$(displayPath "$option_workspace")"
+    workdispPath="${workdispPath%/}"
+    if [[ "$when" == "AT_ENTRY" ]] ; then
+        if [[ "${#_workspace_review_warnings[@]}" -gt 0 ]] || [[ "${#_workspace_review_entries_to_delete[@]}" -gt 0 ]] ; then
+            echo "⚠️  Reviewed workspace located at \`$workdispPath\` : Issues found:"
+            for x in "${_workspace_review_warnings[@]}" ; do
+                echo "   - Warning: ${workdispPath}/${x}"
+            done
+            for x in "${_workspace_review_entries_to_delete[@]}" ; do
+
+                local _delPathDisp
+                local _delPath
+                _delPath="${option_workspace%/}/${x}"
+                _delPathDisp="$(displayPath "$_delPath")"
+
+                local _kind
+                local _suggestion
+
+                if [[ -L "$_delPath" ]] ; then
+                    _kind="link"
+                    _suggestion="sudo unlink"
+                elif [[ -f "$_delPath" ]] ; then
+                    _kind="file"
+                    _suggestion="sudo rm -f"
+                elif [[ -d "$_delPath" ]] ; then
+                    _kind="directory"
+                    _suggestion="sudo rm -rf"
+                    _delPathDisp+="/"
+                else
+                    _kind="entry"
+                    _suggestion="⚠️ Review"
+                fi
+                printf "   - Root %-10s - Suggest: " "$_kind"
+                echo -e "${COLOUR[VIVID_BLUE_USED]:-}${_suggestion} ${_delPathDisp}${COLOUR[OFF_USED]:-}"
+
+            done
+            if [[ "$option_do_clean_workspace" == 'force' ]] ; then
+                echo "⚠️  '--clean-workspace=force' selected.  Continuing"
+            else
+                echo    ""
+                echo    "   Please review the above issues before re-running."
+                echo    ""
+                echo    "   Your options are:"
+                echo    "     1. Manually fix the issues above"
+                echo -e "     2. Use ${COLOUR[VIVID_BLUE_USED]:-}--clean-workspace=force${COLOUR[OFF_USED]:-} to ignore these issues and continue anyway"
+                echo    "        Enforcing a clean workspace means that root files in the workspace will be deleted on exit"
+                echo -e "     3. Use ${COLOUR[VIVID_BLUE_USED]:-}--clean-workspace=no${COLOUR[OFF_USED]:-} to ignore these issues. No files will be deleted on exit"
+                echo    ""
+                exit 13
+            fi
+        fi
+    elif [[ "$when" == "AT_EXIT" ]] ; then
+        if [[ "${#_workspace_review_warnings[@]}" -gt 0 ]] ; then
+            echo "⚠️  Reviewed workspace: $(displayPath "$option_workspace") -- some non user ${_workspace_review_setting_current_user@Q} entries found:"
+            for x in "${_workspace_review_warnings[@]}" ; do
+                printf "  -  %-30s  [⚠️  Warning]\n" "${x}"
+            done
+
+            for x in "${_workspace_review_entries_to_delete[@]}" ; do
+                printf "  -  %-30s  [⚡  Root user entry - deletion suggested]\n" "${x}"
+            done
+        elif [[ "${#_workspace_review_entries_to_delete[@]}" -gt 0 ]] ; then
+            echo "⚠️  Reviewed workspace: $(displayPath "$option_workspace") -- some root entries found.  Deletion suggested:"
+            for x in "${_workspace_review_entries_to_delete[@]}" ; do
+                echo "  -  $x"
+            done
+        fi
+    else
+        echo "⚠️  Reviewed workspace: $(displayPath "$option_workspace") -- unknown review time '$when'"
+    fi
+}
+
+#
+#################################################################################################################
+
+function reviewWorkspace_init()
+{
+    _workspace_review_setting_current_user="$(id -un)"
+    _workspace_review_entries_to_delete=()
+    _workspace_review_warnings=()
+    # |x| _workspace_review_messages=()
+    print_extraVerbose "Reviewing $option_workspace for potential permission issues when running in docker: Expecting User [$_workspace_review_setting_current_user]"
+}
+function reviewWorkspace_entry()
+{
+    local fullPath="$1"
+
+    local file_user
+    file_user="$(stat -c '%U' "$fullPath")"
+
+    local workspacePart="${fullPath##"${option_workspace%/}/"}"
+
+    #print_extraVerbose " - Reviewing {workspace}/${workspacePart} : User $file_user"
+
+    if [[ "$file_user" != "$_workspace_review_setting_current_user" ]] ; then
+        if [[ "$file_user" == 'root' ]] ; then
+            print_extraVerbose "    Delete: Workspace:${workspacePart} : User=$file_user"
+            _workspace_review_entries_to_delete+=("${workspacePart}")
+            # |x| _workspace_review_messages+=("${workspacePart} : Clear root entry")
+        else
+            print_extraVerbose "    Warning: Workspace:${workspacePart} : User=$file_user"
+        fi
+        return 0
+    fi
+    [[ -L "$fullPath" ]] && return 0
+    [[ -f "$fullPath" ]] && return 0
+    if [[ ! -d "$fullPath" ]] ; then
+        print_extraVerbose "    Warnings: File Type"
+        _workspace_review_warnings+=("${workspacePart} :Not a regular file or directory")
+        return 0
+    fi
+
+    shopt -s dotglob
+    shopt -s nullglob
+
+    for entry in "$fullPath"/*; do
+        reviewWorkspace_entry "$entry"
+    done
+
+    return 0
+}
+
+source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/../lib-app.inc.bash"
