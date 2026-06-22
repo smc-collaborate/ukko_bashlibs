@@ -380,21 +380,22 @@ function review_workspace()
                     _kind="entry"
                     _suggestion="⚠️ Review"
                 fi
-                printf "   - Root %-10s - Suggest: ", "$kind"
+                printf "   - Root %-10s - Suggest: " "$_kind"
                 echo -e "${COLOUR[VIVID_BLUE_USED]:-}${_suggestion} ${_delPathDisp}${COLOUR[OFF_USED]:-}"
 
             done
             if [[ "$option_do_clean_workspace" == 'force' ]] ; then
                 echo "⚠️  '--clean-workspace=force' selected.  Continuing"
             else
-                echo "    Please review the above issues re-running."
-                echo "     Your options are:"
-                echo "     1. Use '--clean-workspace=force' to ignore these issues and continue anyway"
-                echo "        Enforcing a clean workspace means that root files in the workspace will be deleted on exit"
-                echo "     2. Use '--clean-workspace=no'"
-                echo "        No files are deleted"
-                echo "     3. Manually fix the issues in the workspace"
-                echo "        (eg: By changing permissions or deleting root-owned files) and re-run without the warning"
+                echo    ""
+                echo    "   Please review the above issues before re-running."
+                echo    ""
+                echo    "   Your options are:"
+                echo    "     1. Manually fix the issues above"
+                echo -e "     2. Use ${COLOUR[VIVID_BLUE_USED]:-}--clean-workspace=force${COLOUR[OFF_USED]:-} to ignore these issues and continue anyway"
+                echo    "        Enforcing a clean workspace means that root files in the workspace will be deleted on exit"
+                echo -e "     3. Use ${COLOUR[VIVID_BLUE_USED]:-}--clean-workspace=no${COLOUR[OFF_USED]:-} to ignore these issues. No files will be deleted on exit"
+                echo    ""
                 exit 13
             fi
         fi
