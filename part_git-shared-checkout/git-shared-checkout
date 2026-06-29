@@ -514,6 +514,48 @@ function dump_gitInfoOnDir()
     echo -e "${COLOUR[VIVID_BLUE_STDOUT]:-}${gitInfo_description}${COLOUR[OFF_STDOUT]:-}$gitInfo_warning"
 }
 
+function displayPathList()
+{
+    local result=''
+    local value
+
+    for value in "$@" ; do
+        [[ -z "$result" ]] || result+=','
+        x="$(quoteIfNeeded "$(displayPath "$value")")"
+        result+="$x"
+    done
+
+    [[ "$#" == 1 ]] || result="[$result]"
+    echo -n "$result"
+}
+
+
+function displayRedPath()
+{
+    echo -en "${COLOUR[VIVID_RED_USED]:-}"
+    displayPath "$@"
+    echo -en "${COLOUR[OFF_USED]:-}"
+}
+function displayBluePath()
+{
+    echo -en "${COLOUR[VIVID_BLUE_USED]:-}"
+    displayPath "$@"
+    echo -en "${COLOUR[OFF_USED]:-}"
+}
+function displayBrightPath()
+{
+    echo -en "${COLOUR[VIVID_WHITE_USED]:-}"
+    displayPath "$@"
+    echo -en "${COLOUR[OFF_USED]:-}"
+}
+function displayQuotedBlue()
+{
+    echo -en "${COLOUR[VIVID_BLUE_USED]:-}"
+    quoteIfNeeded "$@"
+    echo -en "${COLOUR[OFF_USED]:-}"
+}
+
+
 function displayPath()
 {
     local fname_in="$1"
@@ -542,13 +584,19 @@ function displayPath()
     skip_relative_if_contains="$(printf -v spaces "%*s" "$max_back" "" && echo "${spaces// /../}")"
     skip_relative_if_contains="${skip_relative_if_contains%/}"
 
-    local orig
-    local relPath
+    local orig=''
+    local relPath=''
     local result
 
-    orig="$(realpath "${pathToReview}")"
+    if [[ -n "$pathToReview" ]] ; then
+        if ! orig="$(realpath "${pathToReview}" 2>/dev/null)" ; then
+            echo "$pathToReview  [⚠️  Path issue]"
+            return 0
+        fi
+        relPath="$(realpath --relative-to="${ORIG_PWD%/}/" "${orig}")"
+    fi
     result="${orig/#$HOME/\~}"
-    relPath="$(realpath --relative-to="${ORIG_PWD%/}/" "${orig}")"
+
     [[ "${1:-}" == "--run-path" ]] && [[ "$relPath" != *"/"* ]] && [[ "$relPath" != "./"* ]] && [[ "$relPath" != "." ]] && relPath="./${relPath}"
     [[ "$relPath" != *"${skip_relative_if_contains}"* ]] && [[ "${#result}" -gt  "${#relPath}" ]] && result="$relPath"
         skip_relative_if_contains="${skip_relative_if_contains%/}"
@@ -661,16 +709,39 @@ function quoteIfNeeded()
 #
 declare -A COLOUR=()
 declare -A COLOUR_CODES=(
+        [BLACK]='\033[0;30m'
         [RED]='\033[0;31m'
         [GREEN]='\033[0;32m'
         [YELLOW]='\033[0;33m'
         [BLUE]='\033[0;34m'
+        [MAGENTA]='\033[0;35m'
+        [CYAN]='\033[0;36m'
+        [WHITE]='\033[0;37m'
 
         [VIVID_RED]='\033[1;31m'
         [VIVID_GREEN]='\033[1;32m'
         [VIVID_YELLOW]='\033[1;33m'
         [VIVID_BLUE]="\033[1;34m"
+        [VIVID_MAGENTA]='\033[1;35m'
+        [VIVID_CYAN]='\033[1;36m'
+        [VIVID_WHITE]='\033[1;37m'
 
+
+        [UNDERLINE_RED]='\033[4;31m'
+        [UNDERLINE_GREEN]='\033[4;32m'
+        [UNDERLINE_YELLOW]='\033[4;33m'
+        [UNDERLINE_BLUE]="\033[4;34m"
+        [UNDERLINE_MAGENTA]='\033[4;35m'
+        [UNDERLINE_CYAN]='\033[4;36m'
+        [UNDERLINE_WHITE]='\033[4;37m'
+
+        [DIM_RED]='\033[2;31m'
+        [DIM_GREEN]='\033[2;32m'
+        [DIM_YELLOW]='\033[2;33m'
+        [DIM_BLUE]="\033[2;34m"
+        [DIM_MAGENTA]='\033[2;35m'
+        [DIM_CYAN]='\033[2;36m'
+        [DIM_WHITE]='\033[2;37m'
         [OFF]='\033[0m'
 )
 
@@ -695,8 +766,10 @@ function colours_load()
 
     UKKO_COLOURS_CHOSEN="--colours=$arg"
 
-    [[ -t 1 ]] || UKKO_COLOURS_CHOSEN+=", stdout redirected"
-    [[ -t 2 ]] || UKKO_COLOURS_CHOSEN+=", stderr redirected"
+    if [[ "$arg" == 'auto' ]] ; then
+        [[ -t 1 ]] || UKKO_COLOURS_CHOSEN+=", stdout redirected"
+        [[ -t 2 ]] || UKKO_COLOURS_CHOSEN+=", stderr redirected"
+    fi
 
     # |x| echo "colours_load($arg): $UKKO_COLOURS_CHOSEN" >&2
     local kind
@@ -857,6 +930,26 @@ function do_ensure_link()
     return 0
 }
 
+function forceDelete()
+{
+    local result='0'
+    local prefix="${1:-}"
+    while IFS= read -r target; do
+        if [[ -e "$target" ]] ; then
+
+            rm -rf "$target" &>/dev/null || true
+            if [[ ! -e "$target" ]] ; then
+                echo "✓ Deleted $target "
+            elif [[ "$(id -u)" -ne 0 ]] && sudoIfNeeded rm -rf "$target" ; then
+                echo "✓ Deleted $target (with sudo)"
+            else
+                echo "✗ Failed to delete '$target'"
+                result=1
+            fi
+        fi
+    done
+    return $result
+}
 function do_ensure_file_set()
 {
     local dest_fname="$1"
@@ -883,7 +976,7 @@ function do_ensure_file_set()
 }
 
 #
-# End Region: Shared bewteen lib-common.inc.bash & single file: git-shared-checkout
+# End Region: Shared between lib-common.inc.bash & single file: git-shared-checkout
 #
 #==============================================================================================
 
@@ -976,6 +1069,7 @@ function giveCodeHelp()
     echo "    \$EXE_NAME            │ The name of the executable (e.g. 'myscript.sh') │ ${EXE_NAME:-❓  Not defined}"
     echo "    \$THIS_EXE            │ The full path to the executable                 │ ${THIS_EXE:-❓  Not defined}"
     echo "    \$EXE_DIR             │ The directory of the executable                 │ ${EXE_DIR:-❓  Not defined}"
+    echo "    \$PROJ_DIR            │ The root directory of the project               │ ${PROJ_DIR:-❓  Not defined}"
     echo "    \$THIS_EXE_AS_DISPLAY │ The display path of the executable              │ ${THIS_EXE_AS_DISPLAY:-❓  Not defined}"
     echo "    \$CMD_AS_DISPLAY      │ The executable in a form that can be run        │ ${CMD_AS_DISPLAY:-❓  Not defined}"
     echo ""
@@ -1040,7 +1134,7 @@ function do_exitWithHelp()
                 echo -e "     --install  : Installs to $_installDirShow "
             fi
         fi
-        echo -e "     --colours=no|yes|auto  (Default 'auto')"
+        echo -e "     --colours=no|yes   (Default: yes)" # |auto  (Default 'auto')"
     } >&2
 
     if [[ -n "$fatal_error_message" ]]; then
@@ -1049,7 +1143,141 @@ function do_exitWithHelp()
         exit 0
     fi
 }
+function do_withOptionalTiming()
+{
+    local with_timing="$1"
+    shift 1
+    local result=0
 
+    if [[ "${with_timing:-}" == 'yes' ]]; then
+        TIMEFORMAT=$'\n-- Total Time Summary ---\nReal:  %3Rs\nUser:  %3Us\nSys:   %3Ss\nCPU:   %P%%\n----------------------'
+        time "$@" || result="$?"
+    else
+        "$@" || result="$?"
+    fi
+    # |!!>| echo "!!!!!!!!! do_withOptionalTiming[$*] : Result: $result" >&2
+    return "$result"
+}
+
+function bashlibs_warn_on_version_if_needed()
+{
+    if [[ -n "${UKKO_BASHLIBS_REF_FORCE:-}" ]] && [[ "${UKKO_BASHLIBS_REF_FORCE:-}" != "${UKKO_BASHLIBS_REF_PREFERRED:-}" ]] ; then
+        echo -n "⚠️  UKKO_BASHLIBS_REF_FORCE=$UKKO_BASHLIBS_REF_FORCE"
+        [[ -n "${UKKO_BASHLIBS_REF_PREFERRED:-}" ]] && echo -n " (Preferred: '${UKKO_BASHLIBS_REF_PREFERRED:-}')"
+        echo ""
+    fi
+}
+
+
+
+# Return with no argument if name starts with '!'
+#
+# param_choose_from_list "exit" "$1" "$2" fred mary tom
+# ---------------|-----------------------|--------------
+#  selected_name | Params $1,$2          | Result
+# ---------------|-----------------------|--------------
+#   value        | --value= fred           -> true
+#   value        | --value= mary           -> true
+#   value        | --value= tom            -> true
+#  !value        | --value= fred           -> true
+#  !value        | --value= mary           -> true
+#  !value        | --value= tom            -> true
+# ---------------|-----------------------|--------------
+#   value        | --value                 ->      FALSE
+#  !value        | --value                 -> true
+# ---------------|-----------------------|--------------
+#   value        | --value= other          ->      FALSE
+#  !value        | --value= other          ->      FALSE
+#   value        | --value=                ->      FALSE
+#  !value        | --value=                ->      FALSE
+# ---------------|-----------------------|--------------
+function param_choose_from_list()
+{
+    function _param_choose_from_list()
+    {
+        local name_for_comparison="$1"
+        local decorated_name_passed="$2"
+        local value_passed="$3"
+
+        if [[ "$name_for_comparison" == '--'* ]] || [[ "$name_for_comparison" == *'=' ]] ; then
+            local _bad="$name_for_comparison"
+            name_for_comparison="${name_for_comparison#--}"
+            name_for_comparison="${name_for_comparison%=}"
+            echo -e "⚠️  Deprecated - param_choose_####() ${name_for_comparison@Q} rather than ${_bad@Q}" >&2
+        fi
+
+        if [[ "${name_for_comparison}" == '!'* ]] ; then
+            name_for_comparison="${name_for_comparison#'!'}"
+            # Accept default if the name is passed without '=value' (e.g. '--exit' rather than '--exit=yes' or '--exit=no')
+            [[ "$decorated_name_passed" == "--${name_for_comparison}" ]] && return 0
+        fi
+
+        [[ "$decorated_name_passed" == "--${name_for_comparison}=" ]] || return 1
+
+
+        shift 3 || true
+
+        app_load_param_validate_from_list "--${name_for_comparison}=" "${value_passed}" "$@"
+    }
+    local _result=0
+    _param_choose_from_list "$@" || _result=$?
+
+
+    # |Logging| echo "ℹ️  param_choose_from_list($*) : Result: ${_result}" >&2
+    return "$_result"
+}
+
+# Return with no argument if name starts with '!'
+#
+# param_choose_yes_no "exit" "$1" "$2"
+# ---------------|-----------------------|--------------
+#  selected_name | Params $1,$2          | Result
+# ---------------|-----------------------|--------------
+#   exit         | --exit= yes             -> true
+#   exit         | --exit= no              -> true
+#  !exit         | --exit= yes             -> true
+#  !exit         | --exit= no              -> true
+# ---------------|-----------------------|--------------
+#   exit         | --exit                  ->      FALSE
+#  !exit         | --exit                  -> true
+# ---------------|-----------------------|--------------
+#   exit         | --exit= other           ->      FALSE
+#  !exit         | --exit= other           ->      FALSE
+#   exit         | --exit=                 ->      FALSE
+#  !exit         | --exit=                 ->      FALSE
+# ---------------|-----------------------|--------------
+function param_choose_yes_no()
+{
+    param_choose_from_list "$@" "yes" "no"
+}
+
+#
+# ref_name="$1"
+# provided_name="$2"
+# provided_value_txt="$3"
+# min_value
+# max_value
+function param_int()
+{
+    local ref_name="$1"
+    local provided_name="$2"
+    local provided_value_txt="$3"
+    local min_value="${4:-}"
+    local max_value="${5:-}"
+
+    [[ "$ref_name" == "$provided_name" ]] || return 1
+
+    local caption="${!ref_name}[${min_value}…${max_value}]"
+    print_extraVerbose "$caption : Validating ${provided_value_txt@Q}"
+
+    [[ "$provided_value_txt" =~ ^[+-]?[0-9]+$ ]] || do_errorExitWithSuggestion "Invalid value for $caption: ${provided_value_txt@Q} is not an integer"
+
+    local provided_value="$provided_value_txt"
+    [[ -n "$min_value" ]] && [[ "$provided_value" -lt "$min_value" ]] && do_errorExitWithSuggestion "Invalid value for $caption: ${provided_value@Q} is less than minimum allowed value of $min_value"
+    [[ -n "$max_value" ]] && [[ "$provided_value" -gt "$max_value" ]] && do_errorExitWithSuggestion "Invalid value for $caption: ${provided_value@Q} is greater than maximum allowed value of $max_value"
+
+    return 0
+}
 
 function app_load_param_validate_from_list()
 {
@@ -1057,12 +1285,17 @@ function app_load_param_validate_from_list()
     local value="$2"
 
     shift 2 || true
-    #echo "ℹ️  Validating value for $name$value against expected values: [$(asCsvList "$@")]"
+    print_extraVerbose  "app_load_param_validate_from_list[$name,$value]: ($*) : Validating value for $name$value against expected values: [$(asCsvList "$@")]"
 
     for arg in "$@"; do
         [[ "$arg" == "$value" ]] && return 0
     done
-    do_errorExitWithSuggestion "Invalid value for ${name}<value>.  <value> is ${value@Q}, but expected one of [$(asCsvList "$@")]"
+
+    if [[ "$#" == 1 ]]; then
+        do_errorExitWithSuggestion "Invalid value for $name<value>.  Expected: ${1@Q}, but got ${value@Q}"
+    else
+        do_errorExitWithSuggestion "Invalid value for ${name}<value>.  <value> is ${value@Q}, but expected one of [$(asCsvList "$@")]"
+    fi
 }
 
 function load_params()
@@ -1070,8 +1303,15 @@ function load_params()
     local am_processing_options='yes'
     function _app_get_param_defaults()
     {
-        declare -F app_load_param_defaults  &> /dev/null  || return 0 ; app_load_param_defaults
+        declare -F app_load_param_defaults  &> /dev/null  || return 0
+        app_load_param_defaults
     }
+    function _app_get_param_review()
+    {
+        declare -F app_params_review  &> /dev/null  || return 0
+        app_params_review
+    }
+
     function _app_get_param_option_name_value()
     {
         declare -F app_load_param_option_name_value  &> /dev/null  && app_load_param_option_name_value "$1" "${2:-}"
@@ -1087,14 +1327,14 @@ function load_params()
     _app_get_param_defaults
     local giveCodeHelp='no'
     local giveStdHelp='no'
+
     for arg in "$@"; do
         [[ -z "$arg" ]] && continue
         if [[ "$am_processing_options" == "yes" ]] && [[ "$arg" == '-'* ]]; then
             if [[ "$arg" == '--' ]] ; then
                 am_processing_options='no'
             elif [[ "$arg" == '--version' ]] && [[ -n "${APP_VERSION:-}" ]]; then
-                echo "$(basename "$THIS_EXE") $APP_VERSION"
-                exit 0
+                exitWithVersion
             elif [[ "$arg" == '--help' ]]; then
                 giveStdHelp='yes'
             elif [[ "$arg" == '--colours=no' ]] || [[ "$arg" == '--colours=yes' ]] || [[ "$arg" == '--colours=auto' ]]; then
@@ -1123,7 +1363,7 @@ function load_params()
     elif [[ "$giveStdHelp" == "yes" ]]; then
         do_exitWithHelp ""
     fi
-
+    _app_get_param_review
 }
 
 function do_with_check()
@@ -1147,7 +1387,7 @@ function do_with_check()
     else
         [[ "$status" == 1 ]] || suffix=" with status $status"
         echo -e "Ran    :${COLOUR[VIVID_RED_STDERR]:-}$caption${COLOUR[OFF_STDERR]:-} -- Failed$suffix" >&2
-        [[ "$caption" == "$*" ]] || echo -e "Command: ${COLOUR[VIVID_BLUE_STDERR]:-}$*${COLOUR[OFF_STDERR]:-}" >&2
+        [[ "$caption" == "$*" ]] || echo -e "Command: ${COLOUR[VIVID_BLUE_STDERR]:-}$(quoteIfNeeded "$@")${COLOUR[OFF_STDERR]:-}" >&2
         exit 1
     fi
 }
