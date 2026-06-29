@@ -597,7 +597,7 @@ function do_ensure_file_set()
 }
 
 #
-# End Region: Shared bewteen lib-common.inc.bash & single file: git-shared-checkout
+# End Region: Shared between lib-common.inc.bash & single file: git-shared-checkout
 #
 #==============================================================================================
 
