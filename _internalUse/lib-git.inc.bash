@@ -53,25 +53,29 @@ function do_gitLfsCheck()
 
 function do_ensure_linked_git_checkout()
 {
+    # |Logging| echo "!!! do_ensure_linked_git_checkout.Start($*)" >&2
+
     local local_repo_link="$1"
+    local dir
     shift 1 || true
-
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
-        do_remove_link "$local_repo_link"
-        return $?
+        do_remove_link "$local_repo_link" || FATAL_FAILURE_NO_RETURN "Failed to remove link for ${local_repo_link}"
     else
-
-        local dir
-        dir="$(git-shared-checkout "$@" )"
-
-        do_ensure_link "$local_repo_link" "${dir%/}/"
+        dir="$(git-shared-checkout "$@" )" || FATAL_FAILURE_NO_RETURN "Failed to checkout git repository"
+        do_ensure_link "$local_repo_link" "${dir%/}/"  || FATAL_FAILURE_NO_RETURN "Failed to ensure link for ${local_repo_link}"
     fi
+
+    # |Logging| echo "!!! do_ensure_linked_git_checkout.End()" >&2
+    return 0
 }
 
 
 # shellcheck disable=SC2317
 function installLibIfNeeded()
 {
+    local _result=0
+    # |Logging| echo "!!! installLibIfNeeded.Start($*)" >&2
+
     local git_url="$1"
     local libname="${git_url##*/}"
     libname="${libname%.git}"
@@ -109,26 +113,74 @@ function installLibIfNeeded()
         fi
     fi
 
+    local ref="${lib_ver:-}"
+
+    [[ -z "$ref" ]] || [[ "${ref}" == "--ref="* ]] || ref="--ref=${ref}"
+
+
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
-        do_remove_link "$dest_dir"
-        return $?
+        do_remove_link "$dest_dir" || FATAL_FAILURE_NO_RETURN "Failed to remove link for ${dest_dir}"
     else
+        echo -e "   Linking ${COLOUR[VIVID_BLUE_STDOUT]:-}$(displayPath "$dest_dir_parent")/${libname}${COLOUR[OFF_STDOUT]:-} → Shared ${COLOUR[VIVID_BLUE_STDOUT]:-}${git_url} ${ref#--ref=}${COLOUR[OFF_STDOUT]:-} ($lib_ver_reason)"
 
-
-        echo -e "   Linking ${COLOUR[VIVID_BLUE_STDOUT]:-}$(displayPath "$dest_dir_parent")/${libname}${COLOUR[OFF_STDOUT]:-} → Shared ${COLOUR[VIVID_BLUE_STDOUT]:-}${git_url} ${lib_ver}${COLOUR[OFF_STDOUT]:-} ($lib_ver_reason)"
-
-        do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" --ref="${lib_ver}"
-
+         do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" "${ref}" || FATAL_FAILURE_NO_RETURN "Failed to link ${git_url} (${ref#--ref=}) to ${dest_dir}"
         local description
-        if ! description="$(git -C "$dest_dir" describe --always --dirty  2>/dev/null)" ; then
-            echo "   ❌ Invalid git repository at $(displayPath "$dest_dir") for ${git_url}"
-            return 1
-
-        fi
-
+        description="$(git -C "$dest_dir" describe --always --dirty  2>/dev/null)" || FATAL_FAILURE_NO_RETURN "   ❌ Invalid git repository at $(displayPath "$dest_dir") for ${git_url}"
         [[ "$description" == *-dirty ]] && description="${description} ⚠️  With uncommited changes"
         echo "    • GitHash: ${description}"
     fi
+    # |Logging| echo "!!! installLibIfNeeded.End()=$_result" >&2
+
+    return "$_result"
+}
+
+# shellcheck disable=SC2317
+function installFromGit()
+{
+    [[ "${AM_CLEANING}" == 'yes' ]] && return 0
+
+    local exeName=''
+
+    if [[ "${1}" == '--app='* ]] ; then
+        exeName="${1#--app=}"
+        shift 1 || true
+    else
+        exeName="$(basename "${1:-}" ".git")"
+    fi
+
+    # |Logging| echo "!!! installFromGit[$exeName] using: $*" >&2
+
+    local version
+
+    version="$("$exeName" --version 2>/dev/null | head -n1 | awk '{print $2}')" || true
+
+    if [[ -n "$version" ]] ; then
+        echo "   Already installed: $exeName (Version $version)"
+        return 0
+    fi
+
+    dir="$(git-shared-checkout "$@" )" || return 1
+
+    if [[ -x "${dir%/}/do-build-and-install.sh" ]] ; then
+        echo "   Installing: $exeName from $(displayPath "${dir}")"
+        "${dir}/do-build-and-install.sh" || return $?
+    elif [[ -x "${dir%/}/do-install.sh" ]] ; then
+        echo "   Installing: $exeName from $(displayPath "${dir}")"
+        "${dir}/do-install.sh" || return $?
+    else
+        echo "   ❌ No install script found for: $exeName at $(displayPath "${dir}")"
+        return 1
+    fi
+
+    version="$("$exeName" --version 2>/dev/null | head -n1 | awk '{print $2}')"
+
+    if [[ -n "$version" ]] ; then
+        echo "   Installed: $exeName (Version $version)"
+        return 0
+    fi
+
+    echo "   ❌ Failed to install: $exeName"
+    return 1
 }
 
 function git_failIfSubmodulesArentCloned()
