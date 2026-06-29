@@ -71,23 +71,58 @@ function testEnd()
 # shellcheck disable=SC2317
 function doFail()
 {
+    # |x| echo "doFail:  Previous: failFound='${failFound:-}'  didOverallFail='${didOverallFail:-}'  TEST_SUPPORT_EXIT_ON_FAIL='${TEST_SUPPORT_EXIT_ON_FAIL:-}'" >&2
     failFound='yes'
+    didOverallFail='yes'  #
     local msg="${1:-Test Failed}"
     shift || true
-    echo "❌  $msg"
+    echo -e "❌  $msg"
 
     for line in "$@"; do
-        echo "❌  $line"
+        echo -e "❌  $line"
     done
     return 1
 }
 
+
+function hasFailedSoExitIfChosen()
+{
+    # |ExtraLogging| echo "!!!  hasFailedSoExitIfChosen.a(): failFound='${failFound:-}'  didOverallFail='${didOverallFail:-}'  TEST_SUPPORT_EXIT_ON_FAIL='${TEST_SUPPORT_EXIT_ON_FAIL:-}'" >&2
+    didOverallFail='yes'
+    failFound='yes'
+    # |ExtraLogging| echo "!!!  hasFailedSoExitIfChosen.b(): failFound='${failFound:-}'  didOverallFail='${didOverallFail:-}'  TEST_SUPPORT_EXIT_ON_FAIL='${TEST_SUPPORT_EXIT_ON_FAIL:-}'" >&2
+
+    if [[ "${TEST_SUPPORT_EXIT_ON_FAIL:-}" == "yes" ]] ; then
+        echo -e "    Ending testing due to ${COLOUR[VIVID_RED_USED]:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${COLOUR[OFF_USED]:-}"
+        exit 1
+    elif [[ "${_test_support_exit_on_fail_warned:-}" != "yes" ]] ; then
+        echo -e "⚠️  To exit on the first failure in future, ${COLOUR[VIVID_RED_USED]:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${COLOUR[OFF_USED]:-}\n"
+        _test_support_exit_on_fail_warned='yes'
+    fi
+    # |ExtraLogging| echo "!!!  hasFailedSoExitIfChosen.z(): failFound='${failFound:-}'  didOverallFail='${didOverallFail:-}'  TEST_SUPPORT_EXIT_ON_FAIL='${TEST_SUPPORT_EXIT_ON_FAIL:-}'" >&2
+}
+function doFailAndExitIfChosen()
+{
+    # |ExtraLogging| echo "!!!  doFailAndExitIfChosen.start(): failFound='${failFound:-}'  didOverallFail='${didOverallFail:-}'  TEST_SUPPORT_EXIT_ON_FAIL='${TEST_SUPPORT_EXIT_ON_FAIL:-}'" >&2
+    # |ExtraLogging| echo "!!!  doFailAndExitIfChosen.b(): Running $*">&2
+    doFail "$@" || true
+
+    hasFailedSoExitIfChosen
+    # |ExtraLogging|  echo "ukkoVerify[Fail]:  Previous: failFound='${failFound:-}'  didOverallFail='${didOverallFail:-}' " >&2
+
+}
 # shellcheck disable=SC2317
 function progressCheck_hasFailed()
 {
     [[ "$failFound" == 'yes' ]]
 }
 
+function checkForExitDueToFailure()
+{
+    echo "!!!  checkForExitDueToFailure: failFound='${failFound:-}'  didOverallFail='${didOverallFail:-}'  TEST_SUPPORT_EXIT_ON_FAIL='${TEST_SUPPORT_EXIT_ON_FAIL:-}'" >&2
+    [[ "$failFound" == 'yes' ]] && hasFailedSoExitIfChosen
+    return 0
+}
 # shellcheck disable=SC2317
 function progressCheck_hasNotFailedYet()
 {
@@ -207,15 +242,17 @@ function get_GOLD_REF_DIR()
 
     export PARENT_DIR ; PARENT_DIR="$(dirname "${EXE_DIR}")"
     export GRANDPARENT_DIR ; GRANDPARENT_DIR=$(dirname "${PARENT_DIR}")
+    export UBERPARENT_DIR ; UBERPARENT_DIR=$(dirname "${GRANDPARENT_DIR}")
     #export SAMPLES_DIR="${PARENT_DIR}/samples"
 
     msgs=()
     msgs+=("⚠️  - EXE_DIR        =$EXE_DIR")
     msgs+=("⚠️  - PARENT_DIR      =$PARENT_DIR")
     msgs+=("⚠️  - GRANDPARENT_DIR =$GRANDPARENT_DIR")
-    #msgs+=("⚠️    - SAMPLES_DIR    =$SAMPLES_DIR")
+    msgs+=("⚠️  - UBERPARENT_DIR  =$UBERPARENT_DIR")
 
-    for dir in "${PROJ_DIR:-}" "${GRANDPARENT_DIR}" "${PARENT_DIR}" "${EXE_DIR}" "-end-"; do
+    for dir in "${UBERPARENT_DIR}" "${GRANDPARENT_DIR}" "${PARENT_DIR}" "${PROJ_DIR:-}"  "${EXE_DIR}" "-end-"; do
+        #print_extraVerbose "get_GOLD_REF_DIR: Reviewing: ${dir}"
         [[ -z "${dir}" ]] && continue
         if [[ "${dir}" == "-end-" ]] ; then
             echo "⚠️  \$GOLD_REF_DIR : Not found - defaulting to missing: ${GOLD_REF_DIR}"
@@ -228,13 +265,13 @@ function get_GOLD_REF_DIR()
 
         export GOLD_REF_DIR="${dir%/}/testing/gold_refs"
         msgs+=("⚠️  -  Reviewed        ${GOLD_REF_DIR}")
-
         if [[ -d "$GOLD_REF_DIR" ]] ; then
-            print_verbose "\$GOLD_REF_DIR = ${GOLD_REF_DIR}"
+            print_extraVerbose " ✓ \$GOLD_REF_DIR = ${GOLD_REF_DIR}"
             break
+        else
+            print_extraVerbose " ✗ \$GOLD_REF_DIR = ${GOLD_REF_DIR}"
         fi
     done
-
 }
 
 # shellcheck disable=SC2317
@@ -256,11 +293,14 @@ function find_and_run_tests()
         for x in "${dirs_to_review[@]}"; do
             _errs+=(" • $(displayPath "${x}")")
         done
-        doFail "${_errs[@]}"
+        doFailAndExitIfChosen "${_errs[@]}"
     fi
 
     for line in "${tests[@]}"; do
-        "${line}" || doFail "Failed $(displayPath "${line}")"
+        echo -e "Run test script: $(displayBluePath "$line")"
+        quoteIfNeeded
+
+        "${line}" || doFailAndExitIfChosen "Failed $(displayPath "${line}")"
     done
 }
 
@@ -268,22 +308,79 @@ function find_and_run_tests()
 function ukkoVerify()
 {
     # --output-format=json-full
-    echo -e -n "${BOLD_BLUE_STDOUT:-}"
-    echo "ukkoTestCommand verify $*"
-    echo -e  "${NC_STDOUT:-}"
-    ukkoTestCommand verify "$@" && return 0
-
-    didFail='yes'
-
-    if [[ "${TEST_SUPPORT_EXIT_ON_FAIL:-}" == "yes" ]] ; then
-        echo -e "Exiting due to ${BOLD_RED_STDOUT:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${NC_STDOUT:-}"
-        exit 1
-    elif [[ "${_test_support_exit_on_fail_warned:-}" != "yes" ]] ; then
-        echo -e "⚠️  To exit on the first failure in future, ${BOLD_RED_STDOUT:-}export TEST_SUPPORT_EXIT_ON_FAIL=yes${NC_STDOUT:-}"
-        _test_support_exit_on_fail_warned='yes'
-    fi
+    # |x| echo "ukkoVerify[Start]:  Previous: failFound='${failFound:-}'  didOverallFail='${didOverallFail:-}' " >&2
+    echo -en "${COLOUR[VIVID_BLUE_USED]:-}"
+    echo -n "ukkoTestCommand verify $(quoteIfNeeded "$@")"
+    echo -e "${COLOUR[OFF_USED]:-}"
+    ukkoTestCommand verify "$@" || hasFailedSoExitIfChosen
 }
 
+function ukkoVerifyWithMsg()
+{
+    local caption="${1:-}"
+    shift 1 || true
+    local params=("$@")
+
+    ukkoVerify "${params[@]}" || doFailAndExitIfChosen "Failed to $caption" "$(quoteIfNeeded "${params[@]}")" || return 1
+}
+
+if [[ -z "${appUnderTest:-}" ]] ; then
+
+    _src="${BASH_SOURCE[-2]:-}"
+    _src="${_src##*/}"
+
+    if [[ "${_src}" == *"-testSupport.inc.bash" ]] ; then
+       appUnderTest="${_src%-testSupport.inc.bash}"
+    else
+       appUnderTest="<Call setAppUnderTest() to set the application to be tested>"
+    fi
+fi
+
+
+function setAppUnderTest()
+{
+    appUnderTest="${1:-}"
+
+    #echo "ℹ️  Set appUnderTest to: $(displayPath "${appUnderTest}")"
+    # Typically 'AUT_VERSION' is set too ..
+
+}
+
+# Verify '$appUnderTest' with the given parameters, and compare the output to the reference file.
+function ukkoVerifyBasicAppUnderTest()
+{
+    local params=("$@")
+
+    local fname="params"
+
+    for x in "${params[@]}"; do
+        fname+="_${x// /_}"
+    done
+
+    fname+=".txt.subst.ref"
+
+    ukkoVerify     --stdout="file:${GOLD_REF_DIR%/}/basic/${fname}"           -- "$appUnderTest" "${params[@]}"
+
+}
+
+
+function noteInBlue()
+{
+    echo -n "${1}"
+    shift 1 || true
+    echo -e -n "${COLOUR[VIVID_BLUE_STDOUT]:-}"
+    echo -n -- "$@"
+    echo -e  "${COLOUR[OFF_STDOUT]:-}"
+}
+
+function noteInBlue_cmd()
+{
+    echo -n "${1}"
+    shift 1 || true
+    echo -e -n "${COLOUR[VIVID_BLUE_STDOUT]:-}"
+    quoteIfNeeded "$@"
+    echo -e  "${COLOUR[OFF_STDOUT]:-}"
+}
 
 function app_init()
 {
@@ -303,8 +400,8 @@ function app_run()
     cd "$PROJ_DIR" || FATAL_FAILURE_NO_RETURN "Failed to change directory to ${PROJ_DIR}"
     [[ "$(type -t setupForMain)" == 'function' ]] && setupForMain "$@"
 
-    main "$@" || didFail='yes'
-    [[ "${didFail:-}" == 'yes' ]] && echo "✗ Failed Tests" && return 1
+    main "$@" || didOverallFail='yes'
+    [[ "${didOverallFail:-}" == 'yes' ]] && echo "✗ Failed Tests" && return 1
 
     echo "✓ Passed Tests"
 
