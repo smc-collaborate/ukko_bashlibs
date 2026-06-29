@@ -167,7 +167,6 @@ function do_completeBuildAndTesting()
     local msg_suffix=''
 
 
-
     #
     # First: Do on docker if requested
     #
@@ -212,12 +211,12 @@ function do_completeBuildAndTesting()
     if [[ ",--clean,--remove,--fresh,--uninstall," == *",${option_build_kind_param},"* ]] ; then
         doActions "AM_CLEANING=yes" || _fullResult="$?"
 
-        if [[ -n "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" ]] ; then
-            if [[ -L "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" ]] ; then
-                msg_suffix+="\n   Also removed link at $(displayPath "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT}" --link-src )"
-                do_remove_link "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" || _fullResult="$?"
+        if [[ -n "${UKKO_BASHLIBS_LOCAL_DIR:-}" ]] ; then
+            if [[ -L "${UKKO_BASHLIBS_LOCAL_DIR:-}" ]] ; then
+                msg_suffix+="\n   Also removed link at $(displayPath "${UKKO_BASHLIBS_LOCAL_DIR}" --link-src )"
+                do_remove_link "${UKKO_BASHLIBS_LOCAL_DIR:-}" || _fullResult="$?"
             else
-                msg_suffix+="\n   Didn't touch: $(quoteIfNeeded "$(displayPath "${UKKO_BASHLIBS_LOCAL_DIR_DEFAULT:-}" --link-src )")"
+                msg_suffix+="\n   Didn't touch: $(quoteIfNeeded "$(displayPath "${UKKO_BASHLIBS_LOCAL_DIR:-}" --link-src )")"
             fi
         fi
         [[ "${_fullResult}" == 0 ]] && echo -e "   Clean done - All outputs cleaned${msg_suffix}"
@@ -241,6 +240,11 @@ function do_completeBuildAndTesting()
     fi
 
 
+    if [[ "$_fullResult" == 0 ]] && [[ "${_doBuild}" == 'yes' ]] ; then
+        echo -e "   Build and testing completed successfully${msg_suffix}"
+    else
+        echo -e "   Build and/or testing failed with result: $_fullResult${msg_suffix}"
+    fi
     return "$_fullResult"
 }
 
@@ -431,21 +435,33 @@ function doActions()
         echo -n "   Only generating sources, not generating applications"
             [[ "${PYTHON_ENV_HERE:-}" == '_none_' ]] || echo -n " nor build virtual environments"
         echo ""
-        do_protoGenerate_orClean "    ⚠️  No proto files found - No sources generated"
+        do_protoGenerate_orClean "    ⚠️  No proto files found - No sources generated" || FATAL_FAILURE_NO_RETURN "Failed to generate proto files."
     else
         #|x|echo "   ℹ️ Generating build environment etc etc etc ...  (Params: $*)"
-        setupBuildEnvironment "$@"
+        setupBuildEnvironment "$@"  || FATAL_FAILURE_NO_RETURN "Failed to set up build environment."
 
-        do_protoGenerate_orClean
+        do_protoGenerate_orClean  || FATAL_FAILURE_NO_RETURN "Failed to generate proto files."
 
         cd "${PROJ_DIR:-}" || true
 
         found_list=""
-        [[ "$(type -t apps_checkSourceValidity)"          == 'function' ]] && apps_checkSourceValidity
-        [[ "$(type -t pre_doInstallOrClean)"              == 'function' ]] && pre_doInstallOrClean
-        [[ "$(type -t apps_doBuildOrClean)"               == 'function' ]] && found_list+='[apps_doBuildOrClean]'   && apps_doBuildOrClean
-        [[ "$(type -t apps_doInstallOrClean)"             == 'function' ]] && found_list+='[apps_doInstallOrClean]' && apps_doInstallOrClean
-        [[ "$(type -t apps_doInstallTestingDependencies)" == 'function' ]] && [[ "$option_with_tests" != 'no' ]] && apps_doInstallTestingDependencies
+        if [[ "$(type -t apps_checkSourceValidity)"          == 'function' ]] ; then
+            apps_checkSourceValidity || FATAL_FAILURE_NO_RETURN "Source validity check failed."
+        fi
+        if [[ "$(type -t pre_doInstallOrClean)"              == 'function' ]] ; then
+            pre_doInstallOrClean || FATAL_FAILURE_NO_RETURN "Failed to install pre-installation dependencies."
+        fi
+        if [[ "$(type -t apps_doBuildOrClean)"               == 'function' ]] ; then
+            found_list+='[apps_doBuildOrClean]'
+            apps_doBuildOrClean || FATAL_FAILURE_NO_RETURN "apps_doBuildOrClean() failed"
+        fi
+        if [[ "$(type -t apps_doInstallOrClean)"             == 'function' ]] ; then
+            found_list+='[apps_doInstallOrClean]'
+            apps_doInstallOrClean || FATAL_FAILURE_NO_RETURN "apps_doInstallOrClean() failed"
+        fi
+        if  [[ "$(type -t apps_doInstallTestingDependencies)" == 'function' ]] && [[ "$option_with_tests" != 'no' ]] ; then
+            apps_doInstallTestingDependencies || FATAL_FAILURE_NO_RETURN "apps_doInstallTestingDependencies() failed"
+        fi
 
         if [[ -z "${found_list}" ]] ; then
             _paths=()
@@ -453,7 +469,6 @@ function doActions()
                 [[ "${x}" == *'.inc.bash' ]] || _paths+=("${x}")
             done
             FATAL_FAILURE_NO_RETURN "No main(), apps_doBuildOrClean() or apps_doInstallOrClean() function found in $(displayPathList "${_paths[@]}")"
-
         fi
     fi
 }
@@ -467,17 +482,19 @@ function doActions()
 
 function runTests()
 {
-    if [[ -x "${EXE_DIR%/}/do-run-tests.sh" ]] ; then
-        echo "Running tests ...  (${EXE_DIR_AS_DISPLAY%/}/do-run-tests.sh)"
-        "${EXE_DIR%/}/do-run-tests.sh" || FATAL_FAILURE_NO_RETURN "Tests failed: Please check the output above."
-    elif [[ -x "${EXE_DIR%/}/do-all-tests.sh" ]] ; then
+    local tests=("${EXE_DIR%/}/do-run-tests.sh"  "${PROJ_DIR%/}/testing/do-run-tests.sh")
+    [[ "${EXE_DIR}" == "${PROJ_DIR}" ]] || tests=("${PROJ_DIR%/}/do-run-tests.sh")
 
-        echo "Running tests ...  (${EXE_DIR_AS_DISPLAY%/}/do-all-tests.sh)"
-        echo -e "⚠️  Deprecated - Prefer name 'do-run-tests.sh'"
-        "${EXE_DIR%/}/do-all-tests.sh" || FATAL_FAILURE_NO_RETURN "Tests failed: Please check the output above."
-    else
-        FATAL_FAILURE_NO_RETURN "Tests failed: Missing '${EXE_DIR_AS_DISPLAY%/}/do-run-tests.sh'"
-    fi
+    local tests_list=()
+    for x in "${tests[@]}" ; do
+        if [[ -x "${x}" ]] ; then
+            echo "Running tests ...  ($(displayPath "${x}")"
+            "${x}" || FATAL_FAILURE_NO_RETURN "Tests failed: Please check the output above."
+            return 0
+        fi
+        tests_list+=("$(displayPath "${x}")")
+    done
+    FATAL_FAILURE_NO_RETURN "Tests failed: Missing [$(asCsvList "${tests_list[@]}")]"
 }
 
 
