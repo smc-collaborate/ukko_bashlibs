@@ -22,7 +22,7 @@ fi
 
 echo "git-shared-checkout: [$*]" >&2
 
-APP_VERSION="v0.0.5f"
+APP_VERSION="v0.0.6"
 APP_SELF_INSTALL='yes'
 function app_help()
 {
@@ -32,6 +32,7 @@ function app_help()
     echo -e "       <ref> = hash:###      -or-"
     echo -e "               branch:###    -or-"
     echo -e "               tag:###       -or-"
+    echo -e "               ver:###        (The first found of: [tag:###,branch:###,branch:###-wip]) -or-"
     echo -e "               hash-only:###  (No git history - only download the files)"
     echo -e "Other options:"
     echo -e "       --reload           Clear the checkout and reload it from the repository (if it already exists)"
@@ -114,14 +115,14 @@ function app_load_param_option_name_value()
             option_ref_value="${ref_arg#\#}"
             giveWarning "Deprecated used of --ref=#${option_ref_value} :  Use --ref=hash:${option_ref_value} instead"
         elif [[ -n "$ref_arg" ]]; then
-            for x in hash hash-only branch tag ; do
+            for x in hash hash-only branch tag ver ; do
                 if [[ "$ref_arg" == "$x:"* ]]; then
                     option_ref_type="$x"
                     option_ref_value="${ref_arg#"$x:"}"
                     break
                 fi
             done
-            [[ -z "$option_ref_type" ]] && do_errorExitWithSuggestion "Invalid format for $name=$value : Expected --ref=branch:<branch_name> or --ref=tag:<tag_name> or --ref=hash:<hash_value> or --ref=hash-only:<hash_value>"
+            [[ -z "$option_ref_type" ]] && do_errorExitWithSuggestion "Invalid format for \`$name=$value\` : Expected --ref=branch:<branch_name> or --ref=tag:<tag_name> or --ref=hash:<hash_value> or --ref=hash-only:<hash_value> or --ref=ver:<version>"
         fi
     else
         return 1
@@ -171,6 +172,53 @@ function app_run()
     fi
 
     repo_fullDir="${SHARED_GIT_DIR%/}/${repo_friendlyName/://}"
+
+    ##############################################
+    # Handle ver:
+    # (The first found of: [tag:###,branch:###,branch:###-wip])
+    if [[ "$option_ref_type" == "ver" ]] ; then
+        if [[ -d "${repo_fullDir%/}/tag_${option_ref_value}" ]] ; then
+            option_ref_type='tag'
+        else
+            # shellcheck disable=SC2016
+            readarray -t _revMarkers < <(git ls-remote  "$option_repo_url") || do_errorExitWithSuggestion "Unable to access repository '$option_repo_url'"
+
+            function _findRef()
+            {
+                local suffix="$1"
+                for ref in "${_revMarkers[@]}" ; do
+                    [[ "$ref" == *"refs/${suffix}" ]] && return 0
+                done
+                return 1
+            }
+
+            if _findRef "tags/${option_ref_value}" ; then
+                option_ref_type='tag'
+                echo "ℹ️  Found ${option_ref_type}: ${option_ref_value}" >&2
+            elif _findRef "heads/${option_ref_value}" ; then
+                option_ref_type='branch'
+                echo "ℹ️  Found ${option_ref_type}: ${option_ref_value}" >&2
+            elif _findRef "heads/${option_ref_value}-wip" ; then
+                option_ref_type='branch'
+                option_ref_value="${option_ref_value}-wip"
+                echo "ℹ️  Found ${option_ref_type}: ${option_ref_value}" >&2
+            else
+                {
+                    echo "ℹ️  Reviewed:"
+                    for x in "${_revMarkers[@]}" ; do
+                        echo "  •  $x"
+                    done
+                } >&2
+                do_errorExitWithSuggestion "Neither tag:{$option_ref_value} nor branch:${option_ref_value} nor branch:${option_ref_value}-wip could be found in the repository '$option_repo_url'"
+            fi
+        fi
+    fi
+
+
+
+    ##############################################
+    #
+
     if [[ -n "$option_ref_type" ]] ; then
         repo_fullDir="${repo_fullDir%/}/${option_ref_type}_${option_ref_value}"
     else
