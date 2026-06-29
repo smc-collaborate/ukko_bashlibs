@@ -150,6 +150,33 @@ function displayPathList()
     echo -n "$result"
 }
 
+
+function displayRedPath()
+{
+    echo -en "${COLOUR[VIVID_RED_USED]:-}"
+    displayPath "$@"
+    echo -en "${COLOUR[OFF_USED]:-}"
+}
+function displayBluePath()
+{
+    echo -en "${COLOUR[VIVID_BLUE_USED]:-}"
+    displayPath "$@"
+    echo -en "${COLOUR[OFF_USED]:-}"
+}
+function displayBrightPath()
+{
+    echo -en "${COLOUR[VIVID_WHITE_USED]:-}"
+    displayPath "$@"
+    echo -en "${COLOUR[OFF_USED]:-}"
+}
+function displayQuotedBlue()
+{
+    echo -en "${COLOUR[VIVID_BLUE_USED]:-}"
+    quoteIfNeeded "$@"
+    echo -en "${COLOUR[OFF_USED]:-}"
+}
+
+
 function displayPath()
 {
     local fname_in="$1"
@@ -303,16 +330,39 @@ function quoteIfNeeded()
 #
 declare -A COLOUR=()
 declare -A COLOUR_CODES=(
+        [BLACK]='\033[0;30m'
         [RED]='\033[0;31m'
         [GREEN]='\033[0;32m'
         [YELLOW]='\033[0;33m'
         [BLUE]='\033[0;34m'
+        [MAGENTA]='\033[0;35m'
+        [CYAN]='\033[0;36m'
+        [WHITE]='\033[0;37m'
 
         [VIVID_RED]='\033[1;31m'
         [VIVID_GREEN]='\033[1;32m'
         [VIVID_YELLOW]='\033[1;33m'
         [VIVID_BLUE]="\033[1;34m"
+        [VIVID_MAGENTA]='\033[1;35m'
+        [VIVID_CYAN]='\033[1;36m'
+        [VIVID_WHITE]='\033[1;37m'
 
+
+        [UNDERLINE_RED]='\033[4;31m'
+        [UNDERLINE_GREEN]='\033[4;32m'
+        [UNDERLINE_YELLOW]='\033[4;33m'
+        [UNDERLINE_BLUE]="\033[4;34m"
+        [UNDERLINE_MAGENTA]='\033[4;35m'
+        [UNDERLINE_CYAN]='\033[4;36m'
+        [UNDERLINE_WHITE]='\033[4;37m'
+
+        [DIM_RED]='\033[2;31m'
+        [DIM_GREEN]='\033[2;32m'
+        [DIM_YELLOW]='\033[2;33m'
+        [DIM_BLUE]="\033[2;34m"
+        [DIM_MAGENTA]='\033[2;35m'
+        [DIM_CYAN]='\033[2;36m'
+        [DIM_WHITE]='\033[2;37m'
         [OFF]='\033[0m'
 )
 
@@ -575,7 +625,7 @@ function asQuotedText()
 
 function print_extraVerbose()
 {
-    [[ "${UKKO_VERBOSITY:-}" == 'all' ]] || return 0
+    [[ "${UKKO_VERBOSITY:-}" == 'all' ]] ||  [[ "${UKKO_BASH_IS_EXTRA_VERBOSE:-}" == 'yes' ]] ||  return 0
 
     echo -e " ~~>| 🛈  $*" >&2
 }
