@@ -95,6 +95,8 @@ function installLibIfNeeded()
     local lib_ver="${2:-}"
     local lib_ver_reason="Directly chosen"
 
+    lib_ver="${lib_ver#--ref=}"  #< Just in case it wasn't stripped properly
+
     if [[ -z "${lib_ver:-}" ]] ; then
         local libname_ver="${libname^^}_VER"
         local libname_ver_default="${libname_ver}_DEFAULT"
