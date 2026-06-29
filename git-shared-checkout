@@ -1,8 +1,0 @@
-{
-    echo "❓  | Deprecated - use 'part_git-shared-checkout/git-shared-checkout'"
-    echo "❓  | Path:"
-    for x in "${BASH_SOURCE[@]}" ; do
-        echo "❓  |   - $x"
-    done
-} >&2
-source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/part_git-shared-checkout/git-shared-checkout"
