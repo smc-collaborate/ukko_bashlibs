@@ -14,7 +14,7 @@ function setRosDistroIfNeeded()
     [[ "${AM_CLEANING:-}" == 'yes' ]] && return 0
     [[ -n "${ROS_DISTRO:-}" ]]  && return 0
 
-    readarray -t distros <<< "$(find /opt/ros/ -maxdepth 1 -mindepth 1 -type d || true)"
+    readarray -t distros <<< "$(find /opt/ros/ -maxdepth 1 -mindepth 1 -type d 2>/dev/null|| true)"
 
     if [[ ${#distros[@]} -gt 1 ]] ; then
         echo "❌  Multiple ROS distros found in /opt/ros/:"
@@ -23,12 +23,12 @@ function setRosDistroIfNeeded()
         done
         echo "    Please set the ROS_DISTRO environment variable to one of the above distros to continue."
         exit 1
-    elif [[ ${#distros[@]} -eq 0 ]] ; then
+    elif [[ ${#distros[@]} -eq 0 ]] || [[ -z "${distros[*]}" ]] ; then
         echo "❌  No ROS distros found in /opt/ros/"
         exit 1
     else
         export ROS_DISTRO="${ROS_DISTRO:-${distros[0]##*/}}"
-        echo "ℹ️  Detected ROS_DISTRO: ${COLOUR[VIVID_BLUE_STDOUT]:-}${ROS_DISTRO}${COLOUR[OFF_STDOUT]:-}"
+        echo -e "ℹ️  Detected ROS_DISTRO: ${COLOUR[VIVID_BLUE_STDOUT]:-}${ROS_DISTRO}${COLOUR[OFF_STDOUT]:-}"
     fi
 }
 
