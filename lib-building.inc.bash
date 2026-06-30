@@ -44,7 +44,7 @@
 #| ╰─────────────────────────────────────────────────────────
 ############################
 
-APP_VERSION="v0.1.1"
+APP_VERSION="v0.1.2"
 APP_DESCRIPTION="Build & Installs"
 
 BUILD_PARAMS=("$@")
@@ -63,7 +63,7 @@ function app_help()
         _msg2=()
     fi
 
-    echo "Usage: ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} [--remove | --fresh] [--with-tests]${_msg1} -- [other params for build functions ...]${COLOUR[OFF_USED]:-}"
+    echo -e "Usage: ${COLOUR[VIVID_BLUE_USED]:-}${CMD_AS_DISPLAY} [--remove | --fresh] [--with-tests]${_msg1} -- [other params for build functions ...]${COLOUR[OFF_USED]:-}"
     echo ""
     echo "   --with-tests[=on]    : Run tests after building"
     echo "   --with-tests=modules : Run tests after building - including module level tests recursively"
