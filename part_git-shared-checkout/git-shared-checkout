@@ -181,7 +181,7 @@ function app_run()
             option_ref_type='tag'
         else
             # shellcheck disable=SC2016
-            readarray -t _revMarkers < <(git ls-remote  "$option_repo_url") || do_errorExitWithSuggestion "Unable to access repository '$option_repo_url'"
+            readarray -t _revMarkers < <(cd /tmp && git ls-remote  "$option_repo_url") || do_errorExitWithSuggestion "Unable to access repository '$option_repo_url'"
 
             function _findRef()
             {
