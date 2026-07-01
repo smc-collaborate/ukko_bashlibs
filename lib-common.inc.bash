@@ -596,6 +596,22 @@ function do_ensure_file_set()
     return 0
 }
 
+function FATAL_FAILURE_NO_RETURN()
+{
+    local msg="${*##❌}"
+
+    local lines=()
+    local prefix="❌  FATAL FAILURE: "
+
+    msg="$(echo -e "$msg")"
+    readarray -t lines <<< "$msg"
+    for x in "${lines[@]}" ; do
+        echo -e "$prefix$x"
+        prefix='    '
+    done
+    exit 1
+}
+
 #
 # End Region: Shared between lib-common.inc.bash & single file: git-shared-checkout
 #
@@ -658,21 +674,7 @@ if [[ -z "${ORIG_PARAMS:-}" ]] ; then
 fi
 
 
-function FATAL_FAILURE_NO_RETURN()
-{
-    local msg="${*##❌}"
 
-    local lines=()
-    local prefix="❌  FATAL FAILURE: "
-
-    msg="$(echo -e "$msg")"
-    readarray -t lines <<< "$msg"
-    for x in "${lines[@]}" ; do
-        echo -e "$prefix$x"
-        prefix='    '
-    done
-    exit 1
-}
 if [[ -z "${THIS_EXE:-}" ]] ; then
     THIS_EXE="${BASH_SOURCE[-1]}"
     if [[ "${THIS_EXE}" == '../' ]] || [[ "${THIS_EXE}" == './' ]] ; then
