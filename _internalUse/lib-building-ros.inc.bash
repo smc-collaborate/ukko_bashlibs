@@ -16,6 +16,11 @@ function setRosDistroIfNeeded()
 
     readarray -t distros <<< "$(find /opt/ros/ -maxdepth 1 -mindepth 1 -type d 2>/dev/null|| true)"
 
+    if [[ ${#distros[@]} -eq 0 ]] || [[ -z "${distros[*]}" ]] ; then
+        echo "❌  No ROS distros found in /opt/ros/"
+        exit 1
+    fi
+
     if [[ ${#distros[@]} -gt 1 ]] ; then
         echo "❌  Multiple ROS distros found in /opt/ros/:"
         for d in "${distros[@]}" ; do
@@ -23,13 +28,77 @@ function setRosDistroIfNeeded()
         done
         echo "    Please set the ROS_DISTRO environment variable to one of the above distros to continue."
         exit 1
-    elif [[ ${#distros[@]} -eq 0 ]] || [[ -z "${distros[*]}" ]] ; then
-        echo "❌  No ROS distros found in /opt/ros/"
-        exit 1
     else
         export ROS_DISTRO="${ROS_DISTRO:-${distros[0]##*/}}"
         echo -e "ℹ️  Detected ROS_DISTRO: ${COLOUR[VIVID_BLUE_STDOUT]:-}${ROS_DISTRO}${COLOUR[OFF_STDOUT]:-}"
     fi
+}
+
+#
+# Ensure that the requested ROS distro is available in /opt/ros/
+# Accepts a list of suitable ROS distros
+#
+function do_rosEnsureDistro()
+{
+    local requested_distros=("$@")
+    [[ "${AM_CLEANING:-}" == 'yes' ]] && return 0
+
+    readarray -t distros <<< "$(find /opt/ros/ -maxdepth 1 -mindepth 1 -type d 2>/dev/null|| true)"
+
+    function exitWithDistroError()
+    {
+        echo -e "❌  $*"
+        if [[ "${#distros[@]}" -gt 0 ]] ; then
+            echo "    Available ROS versions:"
+            for d in "${distros[@]}" ; do
+                echo "    • ${d##*/}"
+            done
+        fi
+
+        if [[ "${#requested_distros[@]}" -gt 0 ]] ; then
+            echo "    Acceptable ROS versions:"
+            for d in "${requested_distros[@]}" ; do
+                echo "    • ${d}"
+            done
+        fi
+
+        [[ -n "${ROS_DISTRO:-}" ]] && echo -e "    Preferred ROS version:   ${COLOUR[VIVID_BLUE_STDOUT]:-}${ROS_DISTRO}${COLOUR[OFF_STDOUT]:-}"
+
+        exit 1
+    }
+    [[ ${#distros[@]} -eq 0 ]] || [[ -z "${distros[*]}" ]] && exitWithDistroError "No ROS distros found in /opt/ros/"
+
+    local matching_distros=()
+    for arg in "${requested_distros[@]}" ; do
+        for d in "${distros[@]}" ; do
+            [[ "${d##*/}" == "${arg}" ]] && matching_distros+=( "${arg}" )
+        done
+    done
+
+
+    [[ ${#matching_distros[@]} -eq 0 ]] && exitWithDistroError "Requested ROS distros [$(asCsvList "${requested_distros[@]}")] not found in /opt/ros/"
+
+    local preferred_distro=""
+    for d in "${matching_distros[@]}" ; do
+        if [[ "$d" == "${ROS_DISTRO:-/dev/null}" ]] ; then
+            preferred_distro="${ROS_DISTRO}"
+            break
+        fi
+    done
+
+    if [[ -n "${preferred_distro:-}" ]] ; then
+        export ROS_DISTRO="${preferred_distro}"
+        echo -e " ℹ️  Using requested ROS_DISTRO: ${COLOUR[VIVID_BLUE_STDOUT]:-}${ROS_DISTRO}${COLOUR[OFF_STDOUT]:-}"
+        return 0
+    fi
+
+    [[ -z "${ROS_DISTRO:-}" ]] || exitWithDistroError "Requested ROS_DISTRO '${ROS_DISTRO}' not found in /opt/ros/"
+
+    [[ "${#matching_distros[@]}" -gt 1 ]] && exitWithDistroError "Multiple suitable ROS distros found in /opt/ros/: [$(asCsvList "${matching_distros[@]}")]\n    Please set the ROS_DISTRO environment variable to one of the above distros to continue."
+
+    export ROS_DISTRO="${matching_distros[0]}"
+    echo -e " ℹ️  Using Found ROS_DISTRO: ${COLOUR[VIVID_BLUE_STDOUT]:-}${ROS_DISTRO}${COLOUR[OFF_STDOUT]:-}"
+    return 0
 }
 
 # shellcheck disable=SC2317
@@ -63,14 +132,14 @@ function do_rosPackages()
 {
     setRosDistroIfNeeded
 
-    if false ; then
-        echo "🔨  ROS2 Installation"
-        installPkgIfNeeded python3-empy
-        installPkgIfNeeded python3-rosdep
-        installPkgIfNeeded python3-colcon-common-extensions
-        #installPkgIfNeeded python3-ros-build-tools
-        #installPkgIfNeeded colcon-ros-bundle
-    fi
+    #|x| if false ; then
+    #|x|     echo "🔨  ROS2 Installation"
+    #|x|     installPkgIfNeeded python3-empy
+    #|x|     installPkgIfNeeded python3-rosdep
+    #|x|     installPkgIfNeeded python3-colcon-common-extensions
+    #|x|     #installPkgIfNeeded python3-ros-build-tools
+    #|x|     #installPkgIfNeeded colcon-ros-bundle
+    #|x| fi
 
     [[ -z "${ROS_PACKAGES:-}" ]] && export ROS_PACKAGES=()
     [[ -z "${ROS_SOURCING:-}" ]] && export ROS_SOURCING=( "source /opt/ros/${ROS_DISTRO}/setup.bash" )
