@@ -80,18 +80,28 @@ function installLibIfNeeded()
     local libname="${git_url##*/}"
     libname="${libname%.git}"
 
+    #########################
+    # dest_parent?
+    #
     local dest_dir_parent
 
-    if [[ -d "${EXE_DIR%/}/libs" ]] ; then
+    if [[ -n "${LIBS_PARENT_DIR:-}" ]] ; then
+        dest_dir_parent="$(realpath "${LIBS_PARENT_DIR%/}")"
+    elif [[ -d "${EXE_DIR%/}/libs" ]] ; then
         dest_dir_parent="${EXE_DIR%/}/libs"
     else
         dest_dir_parent="${EXE_DIR%/}"
     fi
+
+    mkdir -p "${dest_dir_parent}" || FATAL_FAILURE_NO_RETURN "Failed to create parent of lib dir: ${dest_dir_parent}"
+
     local dest_dir="${dest_dir_parent%/}/${libname}"
     ###############
     #
     # Version ?
     #
+
+
     local lib_ver="${2:-}"
     local lib_ver_reason="Directly chosen"
 
