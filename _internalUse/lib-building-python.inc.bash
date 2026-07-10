@@ -129,7 +129,7 @@ function do_setupPythonVenv_orClean()
 
                 if [[ -f "requirements-default.txt" ]] ; then
                     requirements_fname="requirements-default.txt"
-                    echo "      • Using '$requirements_fname' as fallback"
+                    echo "         (Using '$requirements_fname' as fallback)"
                 else
                     FATAL_FAILURE_NO_RETURN "Failed to setup Python virtual environment: No requirements suitable file found"
                 fi
