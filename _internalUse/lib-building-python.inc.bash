@@ -151,12 +151,14 @@ function do_setupPythonVenv_orClean()
             pip install -r "${requirements_fname}" | grep -v '^Requirement already satisfied:' | withPrefix "   │ "
             [[ "${PIPESTATUS[0]}" == 0 ]] || FATAL_FAILURE_NO_RETURN "pip install failure: Please check the output above."
 
-            font_target=".venv/lib/python3.${python3_subver}/site-packages/cv2/qt/fonts"
-            if [[ ! -d "/usr/share/fonts/truetype/dejavu" ]] && [[ -d "$font_target" ]] ; then
+            font_link=".venv/lib/python3.${python3_subver}/site-packages/cv2/qt/fonts"
+            font_target="/usr/share/fonts/truetype/dejavu"
+            if [[ ! -d "$font_link" ]] && [[ -d "$font_target" ]] ; then
                 #
                 # Install fonts for QT apps - otherwise it complains about not finding them
                 #
-                do_ensure_link "/usr/share/fonts/truetype/dejavu" "$font_target"
+                do_ensure_link "$font_link" "$font_target"
+
             else
                 true
             fi
