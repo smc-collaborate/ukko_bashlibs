@@ -161,22 +161,31 @@ function do_rosPackages()
         module_name="$(basename "$package_dir")"
 
         if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
-            echo "   🔨  ROS2 package: $module_name - Cleaning build artifacts"
+            echo "   🔨  ROS2 package: $module_name - Cleaning build artifacts (in dir: ${package_dir}"
             {
                 echo "${package_dir%/}/build"
                 echo "${package_dir%/}/install"
                 echo "${package_dir%/}/log"
                 echo "${package_dir%/}/__pycache__"
             }  | forceDelete "           "
-            echo "Cleaned build, install, log & __pycache__ directories $* (${package_dir})"
+            echo "       Cleaned build, install, log & __pycache__ directories "
         else
-            echo "   🔨  Building ROS2 package: ${module_name} $* (in dir: ${package_dir})"
+            echo "   🔨  Building ROS2 package: ${module_name}  (in dir: ${package_dir})"
             set +u
             # shellcheck disable=SC1090
             source "/opt/ros/${ROS_DISTRO}/setup.bash"
             set -u
-            [[ -d "${package_dir%/}/src" ]] && rosdep install -i --from-path "${package_dir%/}/src"  -y
-            colcon build --packages-select "${module_name}" --base-paths "${package_dir%/}"
+            if ! pushd "$package_dir" &>/dev/null ; then
+                echo "❌  Unable to switch to ROS package directory: $package_dir"
+                exit 1
+            fi
+            [[ -d "src" ]] && rosdep install -i --from-path "src"  -y
+            if ! colcon build ; then
+                echo "❌  Unable to run 'colcon build' in ROS package directory: $package_dir"
+                exit 1
+            fi
+
+            popd &>/dev/null || true
         fi
     done
 }
