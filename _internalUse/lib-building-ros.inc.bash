@@ -163,10 +163,10 @@ function do_rosPackages()
         if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
             echo "   🔨  ROS2 package: $module_name - Cleaning build artifacts"
             {
-                echo "build"
-                echo "install"
-                echo "log"
-                echo "__pycache__"
+                echo "${package_dir%/}/build"
+                echo "${package_dir%/}/install"
+                echo "${package_dir%/}/log"
+                echo "${package_dir%/}/__pycache__"
             }  | forceDelete "           "
             echo "Cleaned build, install, log & __pycache__ directories $* (${package_dir})"
         else
