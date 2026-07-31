@@ -119,21 +119,21 @@ function do_setupPythonVenv_orClean()
 
             echo "   Setting up virtual environment for Python 3.${python3_subver} in $(displayPath "${PYTHON_ENV_HERE%/}/.venv")"
 
-            req_subdir="requirements" ; [[ -d "$req_subdir" ]] || req_subdir=""
+            req_subdir="requirements/" ; [[ -d "$req_subdir" ]] || req_subdir=""
 
             requirements_fname=''
-            if [[ -f "${req_subdir}/requirements-python3.${python3_subver}.txt" ]] ; then
-                requirements_fname="${req_subdir}/requirements-python3.${python3_subver}.txt"
+            if [[ -f "${req_subdir}requirements-python3.${python3_subver}.txt" ]] ; then
+                requirements_fname="${req_subdir}requirements-python3.${python3_subver}.txt"
             else
-                echo "   ⚠️  No ${req_subdir}/requirements-python3.${python3_subver}.txt found"
+                echo "   ⚠️  No ${req_subdir}requirements-python3.${python3_subver}.txt found"
 
-                readarray -t _found < <(find "${req_subdir}" -mindepth 1 -maxdepth 1 -type f -name "requirements*.txt") || true
+                readarray -t _found < <(find "${req_subdir:-.}" -mindepth 1 -maxdepth 1 -type f -name "requirements*.txt") || true
                 for f in "${_found[@]}" ; do
                     echo "       • Found requirements file: ${f##./}"
                 done
 
-                if [[ -f "${req_subdir}/requirements-default.txt" ]] ; then
-                    requirements_fname="${req_subdir}/requirements-default.txt"
+                if [[ -f "${req_subdir}requirements-default.txt" ]] ; then
+                    requirements_fname="${req_subdir}requirements-default.txt"
                     echo "         (Using '$requirements_fname' as fallback)"
                 else
                     FATAL_FAILURE_NO_RETURN "Failed to setup Python virtual environment: No requirements suitable file found"
