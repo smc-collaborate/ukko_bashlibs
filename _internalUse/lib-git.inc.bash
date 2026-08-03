@@ -84,15 +84,17 @@ function installLibIfNeeded()
     # dest_parent?
     #
     local dest_dir_parent
-
+    local parent_ukko_bashlibs_dir  ; parent_ukko_bashlibs_dir="$(dirname "${UKKO_BASHLIBS_LOCAL_DIR%/}")"
     if [[ -n "${LIBS_PARENT_DIR:-}" ]] ; then
-        dest_dir_parent="$(realpath "${LIBS_PARENT_DIR%/}")"
+        dest_dir_parent="$LIBS_PARENT_DIR"
     elif [[ -d "${EXE_DIR%/}/libs" ]] ; then
         dest_dir_parent="${EXE_DIR%/}/libs"
+    elif [[ "${parent_ukko_bashlibs_dir%/}" == *"/common" ]] ; then
+        dest_dir_parent="${parent_ukko_bashlibs_dir%/}"
     else
         dest_dir_parent="${EXE_DIR%/}"
     fi
-
+    dest_dir_parent="$(realpath "${dest_dir_parent}")"
     mkdir -p "${dest_dir_parent}" || FATAL_FAILURE_NO_RETURN "Failed to create parent of lib dir: ${dest_dir_parent}"
 
     local dest_dir="${dest_dir_parent%/}/${libname}"
