@@ -63,6 +63,22 @@ function do_pythonEnvIfNeeded()
     fi
 }
 
+function installEditablePythonPkgs()
+{
+    [[ "${do_setupPython3_Done:-}" == 'yes' ]] || do_setupPython3 ""
+
+    [[ "${AM_CLEANING}" == 'yes' ]] && return 0
+
+    local dir
+
+    dir="$(git-shared-checkout "$@" )" || FATAL_FAILURE_NO_RETURN "Failed to checkout git repository"
+
+    [[  -d "${dir}/pkgs" ]] || FATAL_FAILURE_NO_RETURN "No 'pkgs' directory found in $(displayPath "${dir}")"
+    echo "Installed Editable python package at: $(displayPath "$dir"))"
+    pip install -e "${dir}/pkgs/" || FATAL_FAILURE_NO_RETURN "Failed to install editable Python packages from $(displayPath "${dir}/pkgs")"
+}
+
+
 function set_PYTHON_ENV_HERE()
 {
     function _failAtLocation()
