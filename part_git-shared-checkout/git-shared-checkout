@@ -22,7 +22,7 @@ fi
 
 echo "git-shared-checkout: [$*]" >&2
 
-APP_VERSION="v0.0.6"
+APP_VERSION="v0.0.7"
 APP_SELF_INSTALL='yes'
 function app_help()
 {
@@ -89,7 +89,7 @@ function app_load_param_direct_value()
     elif [[ -z "$option_repo_url" ]]; then
         option_repo_url="$arg"
     else
-        do_errorExitWithSuggestion "Multiple repository URLs provided.  Already have ${option_repo_url@Q} but adding '${arg@Q}' is an error."
+        do_errorExitWithSuggestion "Multiple repository URLs provided.  Already have ${option_repo_url@Q} but adding ${arg@Q} is an error."
     fi
 }
 
