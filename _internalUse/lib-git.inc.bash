@@ -80,24 +80,6 @@ function installLibIfNeeded()
     local libname="${git_url##*/}"
     libname="${libname%.git}"
 
-    #########################
-    # dest_parent?
-    #
-    local dest_dir_parent
-    local parent_ukko_bashlibs_dir  ; parent_ukko_bashlibs_dir="$(dirname "${UKKO_BASHLIBS_LOCAL_DIR%/}")"
-    if [[ -n "${LIBS_PARENT_DIR:-}" ]] ; then
-        dest_dir_parent="$LIBS_PARENT_DIR"
-    elif [[ -d "${EXE_DIR%/}/libs" ]] ; then
-        dest_dir_parent="${EXE_DIR%/}/libs"
-    elif [[ "${parent_ukko_bashlibs_dir%/}" == *"/common" ]] ; then
-        dest_dir_parent="${parent_ukko_bashlibs_dir%/}"
-    else
-        dest_dir_parent="${EXE_DIR%/}"
-    fi
-    dest_dir_parent="$(realpath "${dest_dir_parent}")"
-    mkdir -p "${dest_dir_parent}" || FATAL_FAILURE_NO_RETURN "Failed to create parent of lib dir: ${dest_dir_parent}"
-
-    local dest_dir="${dest_dir_parent%/}/${libname}"
     ###############
     #
     # Version ?
@@ -132,12 +114,31 @@ function installLibIfNeeded()
     [[ -z "$ref" ]] || [[ "${ref}" == "--ref="* ]] || ref="--ref=${ref}"
 
 
+    #########################
+    # dest_parent?
+    #
+    local dest_dir_parent
+    local parent_ukko_bashlibs_dir  ; parent_ukko_bashlibs_dir="$(dirname "${UKKO_BASHLIBS_LOCAL_DIR%/}")"
+    if [[ -n "${LIBS_PARENT_DIR:-}" ]] ; then
+        dest_dir_parent="$LIBS_PARENT_DIR"
+    elif [[ -d "${EXE_DIR%/}/libs" ]] ; then
+        dest_dir_parent="${EXE_DIR%/}/libs"
+    elif [[ "${parent_ukko_bashlibs_dir%/}" == *"/common" ]] ; then
+        dest_dir_parent="${parent_ukko_bashlibs_dir%/}"
+    else
+        dest_dir_parent="${EXE_DIR%/}"
+    fi
+    dest_dir_parent="$(realpath "${dest_dir_parent}")"
+    mkdir -p "${dest_dir_parent}" || FATAL_FAILURE_NO_RETURN "Failed to create parent of lib dir: ${dest_dir_parent}"
+
+    local dest_dir="${dest_dir_parent%/}/${libname}"
+
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         do_remove_link "$dest_dir" || FATAL_FAILURE_NO_RETURN "Failed to remove link for ${dest_dir}"
     else
         echo -e "   Linking ${COLOUR[VIVID_BLUE_STDOUT]:-}$(displayPath "$dest_dir_parent")/${libname}${COLOUR[OFF_STDOUT]:-} → Shared ${COLOUR[VIVID_BLUE_STDOUT]:-}${git_url} ${ref#--ref=}${COLOUR[OFF_STDOUT]:-} ($lib_ver_reason)"
 
-         do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" "${ref}" || FATAL_FAILURE_NO_RETURN "Failed to link ${git_url} (${ref#--ref=}) to ${dest_dir}"
+        do_ensure_linked_git_checkout  "${dest_dir}" "$git_url" "${ref}" || FATAL_FAILURE_NO_RETURN "Failed to link ${git_url} (${ref#--ref=}) to ${dest_dir}"
         local description
         description="$(git -C "$dest_dir" describe --always --dirty  2>/dev/null)" || FATAL_FAILURE_NO_RETURN "   ❌ Invalid git repository at $(displayPath "$dest_dir") for ${git_url}"
         [[ "$description" == *-dirty ]] && description="${description} ⚠️  With uncommited changes"
