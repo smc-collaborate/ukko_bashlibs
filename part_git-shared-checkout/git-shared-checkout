@@ -20,7 +20,7 @@ else
     SHARED_GIT_DIR_DISPLAY='~/gits-shared'
 fi
 
-echo "git-shared-checkout: [$*]" >&2
+# |ExtraLogging| echo "git-shared-checkout: [$*]" >&2
 
 APP_VERSION="v0.0.7"
 APP_SELF_INSTALL='yes'
@@ -1349,7 +1349,8 @@ function load_params()
             if [[ "$arg" == '--' ]] ; then
                 am_processing_options='no'
             elif [[ "$arg" == '--version' ]] && [[ -n "${APP_VERSION:-}" ]]; then
-                exitWithVersion
+                echo "$app_name_and_version"
+                exit 0
             elif [[ "$arg" == '--help' ]]; then
                 giveStdHelp='yes'
             elif [[ "$arg" == '--colours=no' ]] || [[ "$arg" == '--colours=yes' ]] || [[ "$arg" == '--colours=auto' ]]; then
