@@ -5,5 +5,8 @@
   "MD013": {
     "line_length": 152,
     "tables": false
+  },
+  "MD060": {
+    "enabled": false
   }
 }

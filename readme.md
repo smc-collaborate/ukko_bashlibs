@@ -2,8 +2,11 @@
 
 ## Parts ##
 
-* **[do-run-in-docker ⧉](part_do-run-in-docker/readme.md)**
-* **[git-shared-checkout ⧉](part_git-shared-checkout/readme.md)**
+| Part                                                                       | Version |
+|----------------------------------------------------------------------------|---------|
+| **[do-run-in-docker ⧉](part_do-run-in-docker/readme.md)**                 | v0.0.2  |
+| **[git-shared-checkout ⧉](part_git-shared-checkout/readme.md)**           | v0.0.7  |
+| **[_loader-shim.inc.bash ⧉](part_shim-installer/_loader-shim.inc.bash)**  | v0.0.3  |
 
 ## How to use in your project ##
 
@@ -20,7 +23,7 @@ This is most commonly used to install a python project, such as:
 
 Where:
 
-* **`libs/_loader-shim.inc.bash`** is: [**libs/_loader-shim.inc.bash**](_internalUse/_loader-shim.inc.bash) -and-
+* **`libs/_loader-shim.inc.bash`** is: [**lib/_loader-shim.inc.bash**](part_shim-installer/_loader-shim.inc.bash) -and-
 * **`do-build-and-install.sh`** is:
 
    ```bash
