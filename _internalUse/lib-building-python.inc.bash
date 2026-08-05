@@ -124,6 +124,8 @@ function do_setupPythonVenv_orClean()
             requirements_fname=''
             if [[ -f "${req_subdir}requirements-python3.${python3_subver}.txt" ]] ; then
                 requirements_fname="${req_subdir}requirements-python3.${python3_subver}.txt"
+            elif [[ -f "${req_subdir}requirements.txt" ]] ; then
+                requirements_fname="${req_subdir}requirements.txt"
             else
                 echo "   ⚠️  No ${req_subdir}requirements-python3.${python3_subver}.txt found"
 
