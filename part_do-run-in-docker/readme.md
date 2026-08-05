@@ -1,12 +1,12 @@
-# do-run-in-docker
+# do-run-in-docker #
 
-## Typical Use - Try an install of a program & test it for multiple ubuntu versions [`22.04`, `24.04`, `26.04`]
+## Typical Use - Try an install of a program & test it for multiple ubuntu versions [`22.04`, `24.04`, `26.04`] ##
 
 `do-run-in-docker ubuntu:22.04,ubuntu:24.04,ubuntu:26.04 --exit=yes --apt-get=yes -- ./do-build-and-install.sh --with-tests`
 
+## Help ##
 
-## Help
-```
+```text
 ╭───────────────────────────────────────────────────────────────────────
 │ do-run-in-docker: Runs a command on a docker image with some supportive extras (e.g. copying ssh keys, mounting the app directory, etc.)
 │ Usage : do-run-in-docker <docker-image> [options] -- [cmd to run] [parameters for cmd..]

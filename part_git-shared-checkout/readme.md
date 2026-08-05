@@ -1,4 +1,1 @@
-Git checkout:
-
-After checking out tags
-git fetch --unshallow
+# git-shared-checkout   `v0.0.7` #

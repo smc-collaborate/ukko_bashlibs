@@ -2,7 +2,7 @@
 THIS_EXE="$(readlink -f "${BASH_SOURCE[0]}")"
 EXE_DIR="$(realpath -m "$(dirname "$THIS_EXE")")"
 #|Logging| echo "🛈  THIS_EXE = [$THIS_EXE], ORIG_PWD = [${ORIG_PWD:-NONE}]"
-source "${EXE_DIR%/}/lib-common.inc.bash"
+source "${EXE_DIR%/}/../lib-common.inc.bash"
 
 function give_help()
 {

@@ -38,7 +38,7 @@
 # │ source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/libs/shim-lib-building.inc.bash"
 # ╰─────────────────────────────────────────────────────────────────────────────────────
 
-UKKO_BASHLIBS_REF_PREFERRED=branch:docker_multi
+UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.6
 
 ##############################################
 #
@@ -47,9 +47,9 @@ UKKO_BASHLIBS_REF_PREFERRED=branch:docker_multi
 
 function ukkoLibInstall()
 {
-    UKKO_BASHLIBS_LOCAL_DIR_DEFAULT="${LIBS_DIR%/}/ukko_bashlibs"
-    UKKO_BASHLIBS_LOCAL_DIR="$UKKO_BASHLIBS_LOCAL_DIR_DEFAULT"
+    export UKKO_BASHLIBS_LOCAL_DIR="${LIBS_DIR%/}/ukko_bashlibs"
     if [[ -d "${UKKO_BASHLIBS_LOCAL_DIR}" ]] ; then
+
         #
         # Method 1 - 'ukko_bashlibs' is already mapped
         #
@@ -82,6 +82,7 @@ function ukkoLibInstall()
         fi
 
         if [[ "$UKKO_BASHLIBS_LOCAL_DIR" != "$UKKO_BASHLIBS_DIR" ]] ; then
+            # shellcheck source=/dev/null
             source "${UKKO_BASHLIBS_DIR%/}/lib-common.inc.bash"
             do_ensure_link "$UKKO_BASHLIBS_LOCAL_DIR" "$UKKO_BASHLIBS_DIR" || echo "❌ Failed to create link from '${UKKO_BASHLIBS_LOCAL_DIR}' to '${UKKO_BASHLIBS_DIR}'" >&2
         fi
@@ -107,7 +108,6 @@ function _downloadItFromCloud()
     download_refNote=''
     UKKO_BASHLIBS_REF="${UKKO_BASHLIBS_REF_FORCE:-"${ref}"}"
     UKKO_BASHLIBS_URL="${UKKO_BASHLIBS_URL:-git@github.com:smc-collaborate/ukko_bashlibs}"
-
     if  [[ "${UKKO_BASHLIBS_REF}" != "${UKKO_BASHLIBS_REF_PREFERRED:-}" ]] ; then
         if [[ "${UKKO_BASHLIBS_REF_FORCE:-}" == "${UKKO_BASHLIBS_REF:-}" ]] ; then
             echo -n "⚠️  UKKO_BASHLIBS_REF_FORCE=$UKKO_BASHLIBS_REF_FORCE"
@@ -126,7 +126,9 @@ function _downloadItFromCloud()
         return 1
     fi
 
-    UKKO_BASHLIBS_DIR="$(git-shared-checkout "$UKKO_BASHLIBS_URL" --ref="${UKKO_BASHLIBS_REF:-}")" || download_refNote+=" | ❌  FAILED"
+    UKKO_BASHLIBS_DIR="$(git-shared-checkout "$UKKO_BASHLIBS_URL" --ref="${UKKO_BASHLIBS_REF:-}")"  && return 0
+    download_refNote+=" | ❌  FAILED"
+    return 1
 }
 
 function ensure_installed_direct_if_needed()
@@ -139,6 +141,47 @@ function ensure_installed_direct_if_needed()
     local git_url="${2:-}"
     local git_ref="${3:-}"
     local url_part=''
+
+
+    ##############################################
+    # Handle ver:
+    # (The first found of: [tag:###,branch:###,branch:###-wip])
+    if [[ "${git_ref}" == "ver:"* ]] ; then
+        local option_ref_value="${git_ref#ver:}"
+        # shellcheck disable=SC2016
+        readarray -t _revMarkers < <(cd /tmp && git ls-remote  "$git_url") || FATAL_FAILURE_NO_RETURN "Unable to access repository '$git_url'"
+
+        function _findRef()
+        {
+            local suffix="$1"
+            for ref in "${_revMarkers[@]}" ; do
+                [[ "$ref" == *"refs/${suffix}" ]] && return 0
+            done
+            return 1
+        }
+
+        if _findRef "tags/${option_ref_value}" ; then
+            option_ref_type='tag'
+            echo "ℹ️  Found ${option_ref_type}: ${option_ref_value}" >&2
+        elif _findRef "heads/${option_ref_value}" ; then
+            option_ref_type='branch'
+            echo "ℹ️  Found ${option_ref_type}: ${option_ref_value}" >&2
+        elif _findRef "heads/${option_ref_value}-wip" ; then
+            option_ref_type='branch'
+            option_ref_value="${option_ref_value}-wip"
+            echo "ℹ️  Found ${option_ref_type}: ${option_ref_value}" >&2
+        else
+            {
+                echo "ℹ️  Reviewed:"
+                for x in "${_revMarkers[@]}" ; do
+                    echo "  •  $x"
+                done
+            } >&2
+            FATAL_FAILURE_NO_RETURN "Neither tag:{$option_ref_value} nor branch:${option_ref_value} nor branch:${option_ref_value}-wip could be found in the repository '$git_url'"
+        fi
+
+        git_ref="${option_ref_type}:${option_ref_value}"
+    fi
 
     if [[ -z "${git_ref}" ]] ; then
         url_part="refs/heads/main"
@@ -175,7 +218,7 @@ function ensure_installed_direct_if_needed()
             echo "⚡  'apt-get' needs updating"
             _sudoIfNeeded apt-get update
             _sudoIfNeeded apt-get install -y git
-            ##|x| [[ -n "${EXE_DIR:-}" ]] && _sudoIfNeeded git config --global --add safe.directory "${EXE_DIR%/}/#"
+            ##|x| [[ -n "${THIS_DIR:-}" ]] && _sudoIfNeeded git config --global --add safe.directory "${THIS_DIR%/}/#"
         fi
 
         ! _sudoIfNeeded apt-get install -y wget && echo "❌  Failed to install 'wget'"                                                                                                           >&2 && return 1
@@ -190,6 +233,21 @@ function ensure_installed_direct_if_needed()
 }
 
 
+function FATAL_FAILURE_NO_RETURN()
+{
+    local msg="${*##❌}"
+
+    local lines=()
+    local prefix="❌  FATAL FAILURE: "
+
+    msg="$(echo -e "$msg")"
+    readarray -t lines <<< "$msg"
+    for x in "${lines[@]}" ; do
+        echo -e "$prefix$x"
+        prefix='    '
+    done
+    exit 1
+}
 
 function _sudoIfNeeded() {
     if [[ "$(id -u)" -ne 0 ]] ; then

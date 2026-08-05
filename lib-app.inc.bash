@@ -610,35 +610,6 @@ function app_dumpInfo()
     } | withLeftBox >&2
 }
 
-# |!!>| export app_result_fname=''
-# |!!>| echo "app_result_include() - Initialised" >&2
-# |!!>| function app_result_include()
-# |!!>| {
-# |!!>|     set -x
-# |!!>|     local _comment="${2:-}"
-# |!!>|     local _readValue=0
-# |!!>|     echo "!!> ${_comment}: app_result_include($*) : app_result_fname=${app_result_fname@Q}" >&2
-# |!!>|
-# |!!>|     [[ -n "${app_result_fname:-}" ]] && _readValue="$(<"$app_result_fname")"
-# |!!>|     echo "!!> ${_comment}: Loaded value $_readValue from [$app_result_fname]" >&2
-# |!!>|     local valueToSet="$1"
-# |!!>|
-# |!!>|     if [[ "$valueToSet" == "read-and-flush" ]] ; then
-# |!!>|         echo "!!> ${_comment}: Flushing value file [$app_result_fname]" >&2
-# |!!>|         [[ -n "${app_result_fname:-}" ]] && rm -rf "$app_result_fname"
-# |!!>|         return "$_readValue"
-# |!!>|     fi
-# |!!>|     if [[ "$valueToSet" -gt "$_readValue" ]] ; then
-# |!!>|         echo "!!> ${_comment}: app_result_include($*) changed $_readValue -> $valueToSet" >&2
-# |!!>|
-# |!!>|         [[ -z "${app_result_fname:-}" ]] && export app_result_fname="$(mktemp "app_result_include_XXXXX.value")"
-# |!!>|         echo "$valueToSet" > "$app_result_fname"
-# |!!>|         echo "!!> ${_comment}: ----- $app_result_fname now contains: $(<"$app_result_fname")" >&2
-# |!!>|     else
-# |!!>|         echo "!!> ${_comment}: app_result_include($*) unchanged $_readValue" >&2
-# |!!>|     fi
-# |!!>|     set +x
-# |!!>| }
 
 function app_contentsFull()
 {

@@ -49,7 +49,7 @@ function do_serviceInstall_py_orClean()
 
     local exe="/usr/bin/python3"
 
-    [[ "$PYTHON_ENV_HERE" == "_none_" ]] || exe="$(realpath -m "${PYTHON_ENV_HERE%/}/.venv")/bin/python"
+    [[ -z "${PYTHON_ENV_HERE:-}" ]] || [[ "$PYTHON_ENV_HERE" == "_none_" ]] || exe="$(realpath -m "${PYTHON_ENV_HERE%/}/.venv")/bin/python"
 
     do_serviceInstall_orClean "$(basename "$script" '.py')" "$exe" "$script" "$@" || return 1
     return 0
