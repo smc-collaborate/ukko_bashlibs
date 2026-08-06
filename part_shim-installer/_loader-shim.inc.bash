@@ -24,7 +24,7 @@
 #
 export UKKO_SHIM_VERSION=v0.0.4b
 
-UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.6
+UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.7
 
 ##############################################
 #
