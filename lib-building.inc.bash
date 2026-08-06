@@ -500,7 +500,7 @@ function runTests()
     local tests_list=()
     for x in "${tests[@]}" ; do
         if [[ -x "${x}" ]] ; then
-            echo "Running tests ...  ($(displayPath "${x}")"
+            echo "Running tests ...  $(displayPath "${x}")"
             "${x}" || FATAL_FAILURE_NO_RETURN "Tests failed: Please check the output above."
             return 0
         fi
