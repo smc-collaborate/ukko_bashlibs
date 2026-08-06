@@ -3,7 +3,7 @@
 #
 # SHIM Template for loading ukko_bashlibs in a way that is compatible with both direct sourcing and via git-shared-checkout
 #
-# Rev v0.0.5-wip
+# Rev v0.0.5
 #
 # After sourcing this file:
 #    * `UKKO_BASHLIBS_DIR` is the actual directory of the ukko_bashlibs
