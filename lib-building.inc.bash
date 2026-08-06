@@ -408,6 +408,23 @@ function doSetupPrecommitEnvironment()
     fi
 }
 
+function do_makeHelperLink()
+{
+    local sharedDir="$1"
+    local linkName="${2:-}"
+
+    local _linksDir="${PROJ_DIR%/}/_links"
+
+    local _link="${_linksDir%/}/${linkName:-unnamed}"
+    if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
+        do_remove_link "$_link"
+    else
+        mkdir -p "$_linksDir"
+        do_ensure_link "$_link" "$sharedDir"
+    fi
+
+}
+
 function doActions()
 {
     export AM_CLEANING="${1##AM_CLEANING=}"
@@ -419,6 +436,9 @@ function doActions()
     else
         echo "🔨 Building ${APPS_NAME}"
     fi
+
+    do_makeHelperLink "$UKKO_BASHLIBS_DIR" "bashLibs"
+
 
     [[ "${AM_CLEANING:-}" != 'yes' ]] && [[ "${ENSURE_SUBMODULES_ARE_CLONED:-yes}" == 'yes' ]] && git_failIfSubmodulesArentCloned "${PROJ_DIR}"
 
