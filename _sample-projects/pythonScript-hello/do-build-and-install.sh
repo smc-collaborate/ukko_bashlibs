@@ -5,7 +5,8 @@ export VERIFY_ON_BUILD_ENVIRONMENTS="ubuntu-apt:22.04,ubuntu-apt:24.04,ubuntu-ap
 
 function apps_doInstallOrClean()
 {
-    do_exeInstall_orClean "hello.sh"
+    installEditablePythonPkgs "git@github.com:smc-collaborate/ukko_pylibs"  --ref='ver:v0.2.2'
+    do_pyInstall_orClean "hello.py"
 }
 
 # shellcheck source=/dev/null

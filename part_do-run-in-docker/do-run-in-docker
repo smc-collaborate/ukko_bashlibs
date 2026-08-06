@@ -365,11 +365,10 @@ function review_workspace()
                 local _delPathDisp
                 local _delPath
                 _delPath="${option_workspace%/}/${x}"
-                _delPathDisp="$(displayPath "$_delPath")"
+                _delPathDisp="$(displayPath "$_delPath" --link-src)"
 
                 local _kind
                 local _suggestion
-
                 if [[ -L "$_delPath" ]] ; then
                     _kind="link"
                     _suggestion="sudo unlink"

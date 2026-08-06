@@ -178,7 +178,7 @@ function do_completeBuildAndTesting()
             echo "Process completed in host environment with success"
             echo "Verifying that in the docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
 
-            run_cmd=(do-run-in-docker)
+            run_cmd=("${UKKO_BASHLIBS_DIR%/}/part_do-run-in-docker/do-run-in-docker")
             if [[ "$option_with_docker" == 'all' ]] ; then
                 run_cmd+=("$VERIFY_ON_BUILD_ENVIRONMENTS" "--exit=yes")
             elif  [[ "$option_with_docker" == 'dry-run' ]] ; then
@@ -211,14 +211,6 @@ function do_completeBuildAndTesting()
     if [[ ",--clean,--remove,--fresh,--uninstall," == *",${option_build_kind_param},"* ]] ; then
         doActions "AM_CLEANING=yes" || _fullResult="$?"
 
-        if [[ -n "${UKKO_BASHLIBS_LOCAL_DIR:-}" ]] ; then
-            if [[ -L "${UKKO_BASHLIBS_LOCAL_DIR:-}" ]] ; then
-                msg_suffix+="\n   Also removed link at $(displayPath "${UKKO_BASHLIBS_LOCAL_DIR}" --link-src )"
-                do_remove_link "${UKKO_BASHLIBS_LOCAL_DIR:-}" || _fullResult="$?"
-            else
-                msg_suffix+="\n   Didn't touch: $(quoteIfNeeded "$(displayPath "${UKKO_BASHLIBS_LOCAL_DIR:-}" --link-src )")"
-            fi
-        fi
         [[ "${_fullResult}" == 0 ]] && echo -e "   Clean done - All outputs cleaned${msg_suffix}"
 
         [[ "$option_build_kind_param" == '--fresh' ]] || _doBuild='no'
@@ -416,6 +408,23 @@ function doSetupPrecommitEnvironment()
     fi
 }
 
+function do_makeHelperLink()
+{
+    local sharedDir="$1"
+    local linkName="${2:-}"
+
+    local _linksDir="${PROJ_DIR%/}/_links"
+
+    local _link="${_linksDir%/}/${linkName:-unnamed}"
+    if [[ "${AM_CLEANING:-}" == 'yes' ]] ; then
+        do_remove_link "$_link"
+    else
+        mkdir -p "$_linksDir"
+        do_ensure_link "$_link" "$sharedDir"
+    fi
+
+}
+
 function doActions()
 {
     export AM_CLEANING="${1##AM_CLEANING=}"
@@ -427,6 +436,9 @@ function doActions()
     else
         echo "🔨 Building ${APPS_NAME}"
     fi
+
+    do_makeHelperLink "$UKKO_BASHLIBS_DIR" "bashLibs"
+
 
     [[ "${AM_CLEANING:-}" != 'yes' ]] && [[ "${ENSURE_SUBMODULES_ARE_CLONED:-yes}" == 'yes' ]] && git_failIfSubmodulesArentCloned "${PROJ_DIR}"
 
@@ -488,7 +500,7 @@ function runTests()
     local tests_list=()
     for x in "${tests[@]}" ; do
         if [[ -x "${x}" ]] ; then
-            echo "Running tests ...  ($(displayPath "${x}")"
+            echo "Running tests ...  $(displayPath "${x}")"
             "${x}" || FATAL_FAILURE_NO_RETURN "Tests failed: Please check the output above."
             return 0
         fi

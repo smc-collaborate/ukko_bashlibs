@@ -3,7 +3,7 @@
 
 function main()
 {
-    hello --person=world | grep -q "Hello: world"
+    hello world | grep -q "Hello World"
 }
 
 
