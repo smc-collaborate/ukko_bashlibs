@@ -22,7 +22,7 @@ fi
 
 # |ExtraLogging| echo "git-shared-checkout: [$*]" >&2
 
-APP_VERSION="v0.0.7"
+APP_VERSION="v0.0.8"
 APP_SELF_INSTALL='yes'
 function app_help()
 {
@@ -323,7 +323,8 @@ function app_run()
 
             if [[ -f "${repo_fullDir%/}/.pre-commit-config.yaml" ]]; then
                 if ! command -v pre-commit >/dev/null 2>&1 ; then
-                    giveWarning "pre-commit not found in PATH.  Skipping pre-commit install for $repo_friendlyName"
+                    echo -e "${COLOUR[VIVID_MAGENTA_STDERR]:-}ℹ️  pre-commit not found in PATH.  Skipping pre-commit install for $repo_friendlyName${COLOUR[OFF_STDERR]:-}" >&2
+
                 elif ! pushd "$repo_fullDir" &>/dev/null ; then
                     giveWarning "Unable to enter directory $repo_fullDir to install pre-commit hooks.  Skipping pre-commit install for $repo_friendlyName"
                 else
