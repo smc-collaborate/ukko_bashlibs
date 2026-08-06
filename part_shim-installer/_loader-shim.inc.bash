@@ -110,7 +110,7 @@ function _downloadItFromCloud()
     fi
     download_refNote="ref '${UKKO_BASHLIBS_REF}' from ${UKKO_BASHLIBS_URL}"
 
-    if ! ensure_installed_direct_if_needed part_git-shared-checkout/git-shared-checkout "$UKKO_BASHLIBS_URL" "${UKKO_BASHLIBS_REF}" ; then
+    if ! ensure_installed_direct_if_needed git-shared-checkout "$UKKO_BASHLIBS_URL" "${UKKO_BASHLIBS_REF}" ; then
         echo "❌ Failed to install 'git-shared-checkout' from ${UKKO_BASHLIBS_URL} with ref '${UKKO_BASHLIBS_REF}'" >&2
         download_refNote+=" | ❌  FAILED"
         return 1
