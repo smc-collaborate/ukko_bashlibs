@@ -75,7 +75,7 @@ function installEditablePythonPkgs()
 
     [[  -d "${dir}/pkgs" ]] || FATAL_FAILURE_NO_RETURN "No 'pkgs' directory found in $(displayPath "${dir}")"
     echo "Installed Editable python package at: $(displayPath "$dir"))"
-    pip install -e "${dir}/pkgs/" || FATAL_FAILURE_NO_RETURN "Failed to install editable Python packages from $(displayPath "${dir}/pkgs")"
+    pip -v install -e "${dir}/pkgs/" || FATAL_FAILURE_NO_RETURN "Failed to install editable Python packages from $(displayPath "${dir}/pkgs")"
 
 
     do_makeHelperLink "$dir" "${1##*/}"
