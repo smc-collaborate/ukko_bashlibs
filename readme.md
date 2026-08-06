@@ -1,12 +1,15 @@
 # `ukko_bashlibs` -- An old man's collection of bash utilities  (WIP: `0.0.6-wip`) #
 
+Release Checklist:  **`./install/do-run-tests.sh`**
+
 ## Parts ##
 
 | Part                                                                       | Version |
 |----------------------------------------------------------------------------|---------|
 | **[do-run-in-docker ⧉](part_do-run-in-docker/readme.md)**                 | v0.0.2  |
-| **[git-shared-checkout ⧉](part_git-shared-checkout/readme.md)**           | v0.0.7  |
-| **[_loader-shim.inc.bash ⧉](part_shim-installer/_loader-shim.inc.bash)**  | v0.0.3  |
+| **[git-shared-checkout ⧉](part_git-shared-checkout/git-shared-checkout)** | v0.0.8  |
+| **[_loader-shim.inc.bash ⧉](part_shim-installer/_loader-shim.inc.bash)**  | v0.0.5  |
+
 
 ## How to use in your project ##
 
@@ -35,7 +38,7 @@ Where:
    {
        echo "🔨 app-name"
 
-       installEditablePythonPkgs "git@github.com:smc-collaborate/ukko_pylibs"  --ref='ver:v0.2.0'
+       installEditablePythonPkgs "git@github.com:smc-collaborate/ukko_pylibs"  --ref='ver:v0.2.2'
 
        do_pyInstall "my-app.py"
    }
@@ -55,6 +58,24 @@ Check with: **`pre-commit run -a`**
 
 This is done with `ukko_collections` - which has test scripts and includes `ukko_bashlibs` as a submodule
 
-## Dev notes ##
+However, a simple self-contained test is:
 
-None currently
+```bash
+# Build & test all the sample projects
+
+find _sample-projects -name 'do-build-and-install.sh' -exec {} --with-tests --with-docker \;
+
+./install/do-run-tests.sh
+
+```
+
+### pythonScript-hello ##
+
+Run: `_sample-projects/pythonScript-hello/do-build-and-install.sh --with-tests --with-docker`
+
+| Result | OS                | OS SubRev                | Python  | PIP        | Test                                                                                                       |
+|--------|-------------------|--------------------------|---------|------------|------------------------------------------------------------------------------------------------------------|
+|   ✓    | ubuntu-apt:22.04  | .5 LTS (Jammy Jellyfish) | 3.10.12 | pip 22.0.2 | `_sample-projects/pythonScript-hello/do-build-and-install.sh --with-docker=ubuntu-apt:22.04  --with-tests` |
+|   ✓    | ubuntu-apt:24.04  | .4 LTS (Noble Numbat)    | 3.12.3  | pip 24.0   | `_sample-projects/pythonScript-hello/do-build-and-install.sh --with-docker=ubuntu-apt:24.04  --with-tests` |
+|   ✓    | ubuntu-apt:26.04  | LTS (Resolute Racoon)    | 3.14.4  | pip 25.1.1 | `_sample-projects/pythonScript-hello/do-build-and-install.sh --with-docker=ubuntu-apt:26.04  --with-tests` |
+|   ✓    | ubuntu-apt:latest | LTS (Resolute Racoon)    | 3.14.4  | pip 25.1.1 | `_sample-projects/pythonScript-hello/do-build-and-install.sh --with-docker=ubuntu-apt:latest --with-tests` |
