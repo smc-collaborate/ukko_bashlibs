@@ -22,7 +22,7 @@
 # │ source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/libs/.loader-shim.inc.bash"
 # ╰─────────────────────────────────────────────────────────────────────────────────────
 #
-export UKKO_SHIM_VERSION=v0.0.5-wip
+export UKKO_SHIM_VERSION=v0.0.5
 
 UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.7
 
