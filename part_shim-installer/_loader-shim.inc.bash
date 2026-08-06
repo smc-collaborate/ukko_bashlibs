@@ -32,6 +32,9 @@ UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.7
 #
 function ukkoBashLibsInstall()
 {
+    # Sets 'UKKO_BASHLIBS_DIR'
+    # or returns with FAILURE
+
     #|No Local| export UKKO_BASHLIBS_LOCAL_DIR="${RUNNER_DIR%/}/ukko_bashlibs"
     #|No Local| if [[ -d "${UKKO_BASHLIBS_LOCAL_DIR}" ]] ; then
     #|No Local|
@@ -55,7 +58,7 @@ function ukkoBashLibsInstall()
             # Method 2.2 - Found it in parent directories
             #
             _ukko_lib_reason="Found in parent directory"
-            UKKO_BASHLIBS_LOCAL_DIR="${UKKO_BASHLIBS_DIR}"
+            # |No Local| UKKO_BASHLIBS_LOCAL_DIR="${UKKO_BASHLIBS_DIR}"
         elif _downloadItFromCloud "${UKKO_BASHLIBS_REF_PREFERRED:-}" >&2 ; then
             #
             # Method 2.3 - Download it with git-shared-checkout
@@ -107,7 +110,7 @@ function _downloadItFromCloud()
     fi
     download_refNote="ref '${UKKO_BASHLIBS_REF}' from ${UKKO_BASHLIBS_URL}"
 
-    if ! ensure_installed_direct_if_needed part_git-shared-checkout/git-shared-checkout "$UKKO_BASHLIBS_URL" "${UKKO_BASHLIBS_REF}" ; then
+    if ! ensure_installed_direct_if_needed git-shared-checkout "$UKKO_BASHLIBS_URL" "${UKKO_BASHLIBS_REF}" ; then
         echo "❌ Failed to install 'git-shared-checkout' from ${UKKO_BASHLIBS_URL} with ref '${UKKO_BASHLIBS_REF}'" >&2
         download_refNote+=" | ❌  FAILED"
         return 1
@@ -271,7 +274,7 @@ if [[ "$_srcRef" == 'shim-lib-'*'.inc.bash' ]] ; then
     _libname="${_srcRef#shim-lib-}"
     _lib_fullname="lib-${_libname%.inc.bash}"
     # |ExtraLogging| echo "⚡  Detected shim for library '$_libname', loading it directly" >&2
-    # |ExtraLogging| echo "⚡  Loading shim directly: ${UKKO_BASHLIBS_LOCAL_DIR%/}/lib-${_libname}.inc.bash" >&2
+    # |ExtraLogging| echo "⚡  Loading shim directly: ${UKKO_BASHLIBS_DIR%/}/lib-${_libname}.inc.bash" >&2
 elif [[ -n "${LIB_TO_SHIM:-}" ]] ; then
     _lib_fullname="${LIB_TO_SHIM:-}"
 elif [[ "${_callerRef}" == *install* ]] || [[ "${_callerRef}" == *build* ]] ; then
@@ -283,5 +286,5 @@ if [[ -z "${_lib_fullname}" ]] ; then
     echo "❌  ${_callerRef}: Expected 'LIB_TO_SHIM=lib-building' -or- lib-app -or- lib-common -or- lib-testing before 'source --/${BASH_SOURCE[0]##*/}'" >&2
 else
     # shellcheck source=/dev/null
-    source "${UKKO_BASHLIBS_LOCAL_DIR%/}/${_lib_fullname}.inc.bash"
+    source "${UKKO_BASHLIBS_DIR%/}/${_lib_fullname}.inc.bash"
 fi
