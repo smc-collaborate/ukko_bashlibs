@@ -3,14 +3,12 @@
 #
 # SHIM Template for loading ukko_bashlibs in a way that is compatible with both direct sourcing and via git-shared-checkout
 #
-# Rev v0.0.4a
+# Rev v0.0.4b
 #
-# After sourcing this file, 'UKKO_BASHLIBS_LOCAL_DIR' & 'UKKO_BASHLIBS_DIR' are set
-# Typically:
-#    * UKKO_BASHLIBS_DIR is the actual directory of the ukko_bashlibs
-#    * UKKO_BASHLIBS_LOCAL_DIR is './lib/ukko_bashlibs' which is a link to $UKKO_BASHLIBS_DIR
+# After sourcing this file:
+#    * `UKKO_BASHLIBS_DIR` is the actual directory of the ukko_bashlibs
 #
-# There are two ways to use this:
+# To use this:
 #
 # ╭─────────────────────────────────────────────────────────────────────────────────────
 # │ #!/usr/bin/env bash
@@ -22,24 +20,9 @@
 # │
 # │ # shellcheck source=/dev/null
 # │ source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/libs/.loader-shim.inc.bash"
-# │ # shellcheck source=/dev/null
-# │ source "${UKKO_BASHLIBS_LOCAL_DIR%/}/lib-building.inc.bash"
 # ╰─────────────────────────────────────────────────────────────────────────────────────
 #
-#   -or- if 'shim-lib-<libname>.inc.bash' is a link to this file then 'lib-<libname>.inc.bash' is automatically sourced
-#
-# ╭─────────────────────────────────────────────────────────────────────────────────────
-# │ #!/usr/bin/env bash
-# │
-# │ function main()
-# │ {
-# │     hello --person=world | grep -q "Hello: world"
-# │ }
-# │
-# │ # shellcheck source=/dev/null
-# │ source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/libs/shim-lib-building.inc.bash"
-# ╰─────────────────────────────────────────────────────────────────────────────────────
-export UKKO_SHIM_VERSION=v0.0.3
+export UKKO_SHIM_VERSION=v0.0.4b
 
 UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.6
 
@@ -49,15 +32,15 @@ UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.6
 #
 function ukkoLibInstall()
 {
-    export UKKO_BASHLIBS_LOCAL_DIR="${LIBS_DIR%/}/ukko_bashlibs"
-    if [[ -d "${UKKO_BASHLIBS_LOCAL_DIR}" ]] ; then
-
-        #
-        # Method 1 - 'ukko_bashlibs' is already mapped
-        #
-        UKKO_BASHLIBS_DIR="$(readlink -m "${UKKO_BASHLIBS_LOCAL_DIR}")"
-        _ukko_lib_reason="Mapped directory"
-    else
+    #|No Local| export UKKO_BASHLIBS_LOCAL_DIR="${LIBS_DIR%/}/ukko_bashlibs"
+    #|No Local| if [[ -d "${UKKO_BASHLIBS_LOCAL_DIR}" ]] ; then
+    #|No Local|
+    #|No Local|     #
+    #|No Local|     # Method 1 - 'ukko_bashlibs' is already mapped
+    #|No Local|     #
+    #|No Local|     UKKO_BASHLIBS_DIR="$(readlink -m "${UKKO_BASHLIBS_LOCAL_DIR}")"
+    #|No Local|     _ukko_lib_reason="Mapped directory"
+    #|No Local| else
         #
         # Method 2 - Find 'UKKO_BASHLIBS_DIR' value and map it
         #
@@ -83,13 +66,13 @@ function ukkoLibInstall()
             echo "    Suggestion: Consider deleting 'git-shared-checkout' if this is causing issues"
             return 1
         fi
-
-        if [[ "$UKKO_BASHLIBS_LOCAL_DIR" != "$UKKO_BASHLIBS_DIR" ]] ; then
-            # shellcheck source=/dev/null
-            source "${UKKO_BASHLIBS_DIR%/}/lib-common.inc.bash"
-            do_ensure_link "$UKKO_BASHLIBS_LOCAL_DIR" "$UKKO_BASHLIBS_DIR" || echo "❌ Failed to create link from '${UKKO_BASHLIBS_LOCAL_DIR}' to '${UKKO_BASHLIBS_DIR}'" >&2
-        fi
-    fi
+    #|No Local|
+    #|No Local|    if [[ "$UKKO_BASHLIBS_LOCAL_DIR" != "$UKKO_BASHLIBS_DIR" ]] ; then
+    #|No Local|        # shellcheck source=/dev/null
+    #|No Local|        source "${UKKO_BASHLIBS_DIR%/}/lib-common.inc.bash"
+    #|No Local|        do_ensure_link "$UKKO_BASHLIBS_LOCAL_DIR" "$UKKO_BASHLIBS_DIR" || echo "❌ Failed to create link from '${UKKO_BASHLIBS_LOCAL_DIR}' to '${UKKO_BASHLIBS_DIR}'" >&2
+    #|No Local|    fi
+    #|No Local| fi
 }
 
 function _searchParentPath()
