@@ -3,7 +3,7 @@
 #
 # SHIM Template for loading ukko_bashlibs in a way that is compatible with both direct sourcing and via git-shared-checkout
 #
-# Rev v0.0.4b
+# Rev v0.0.5-wip
 #
 # After sourcing this file:
 #    * `UKKO_BASHLIBS_DIR` is the actual directory of the ukko_bashlibs
@@ -22,7 +22,7 @@
 # │ source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/libs/.loader-shim.inc.bash"
 # ╰─────────────────────────────────────────────────────────────────────────────────────
 #
-export UKKO_SHIM_VERSION=v0.0.4b
+export UKKO_SHIM_VERSION=v0.0.5-wip
 
 UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.7
 
@@ -30,9 +30,9 @@ UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.7
 #
 #
 #
-function ukkoLibInstall()
+function ukkoBashLibsInstall()
 {
-    #|No Local| export UKKO_BASHLIBS_LOCAL_DIR="${LIBS_DIR%/}/ukko_bashlibs"
+    #|No Local| export UKKO_BASHLIBS_LOCAL_DIR="${RUNNER_DIR%/}/ukko_bashlibs"
     #|No Local| if [[ -d "${UKKO_BASHLIBS_LOCAL_DIR}" ]] ; then
     #|No Local|
     #|No Local|     #
@@ -49,7 +49,7 @@ function ukkoLibInstall()
             # Method 2.1 - UKKO_BASHLIBS_DIR is set and valid
             #
             _ukko_lib_reason="\$UKKO_BASHLIBS_DIR defined"
-        elif _searchParentPath "$LIBS_DIR" >&2 ; then
+        elif _searchParentPath "$RUNNER_DIR" >&2 ; then
 
             #
             # Method 2.2 - Found it in parent directories
@@ -250,9 +250,9 @@ function _sudoIfNeeded() {
     fi
 }
 
-LIBS_DIR="$(dirname "${BASH_SOURCE[0]}")"
+RUNNER_DIR="$(dirname "${BASH_SOURCE[0]}")"
 
-ukkoLibInstall
+ukkoBashLibsInstall
 
 
 # |ExtraLogging| echo "⚡  Loaded ukko_bashlibs : ${_ukko_lib_reason:-Unknown}" >&2
