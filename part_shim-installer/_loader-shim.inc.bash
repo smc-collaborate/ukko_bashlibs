@@ -281,7 +281,10 @@ elif [[ "${_callerRef}" == *install* ]] || [[ "${_callerRef}" == *build* ]] ; th
     _lib_fullname='lib-building'
 elif [[ "${_callerRef}" == *test* ]] ; then
     _lib_fullname='lib-testing'
+elif declare -F "app_run" > /dev/null ; then
+    _lib_fullname='lib-app'
 fi
+
 if [[ -z "${_lib_fullname}" ]] ; then
     echo "❌  ${_callerRef}: Expected 'LIB_TO_SHIM=lib-building' -or- lib-app -or- lib-common -or- lib-testing before 'source --/${BASH_SOURCE[0]##*/}'" >&2
 else
