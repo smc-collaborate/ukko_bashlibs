@@ -3,7 +3,7 @@
 #
 # SHIM Template for loading ukko_bashlibs in a way that is compatible with both direct sourcing and via git-shared-checkout
 #
-# Rev v0.0.3
+# Rev v0.0.4a
 #
 # After sourcing this file, 'UKKO_BASHLIBS_LOCAL_DIR' & 'UKKO_BASHLIBS_DIR' are set
 # Typically:
@@ -152,6 +152,47 @@ function ensure_installed_direct_if_needed()
 
     local url_part=''
 
+
+    ##############################################
+    # Handle ver:
+    # (The first found of: [tag:###,branch:###,branch:###-wip])
+    if [[ "${git_ref}" == "ver:"* ]] ; then
+        local option_ref_value="${git_ref#ver:}"
+        # shellcheck disable=SC2016
+        readarray -t _revMarkers < <(cd /tmp && git ls-remote  "$git_url") || FATAL_FAILURE_NO_RETURN "Unable to access repository '$git_url'"
+
+        function _findRef()
+        {
+            local suffix="$1"
+            for ref in "${_revMarkers[@]}" ; do
+                [[ "$ref" == *"refs/${suffix}" ]] && return 0
+            done
+            return 1
+        }
+
+        if _findRef "tags/${option_ref_value}" ; then
+            option_ref_type='tag'
+            echo "ℹ️  Found ${option_ref_type}: ${option_ref_value}" >&2
+        elif _findRef "heads/${option_ref_value}" ; then
+            option_ref_type='branch'
+            echo "ℹ️  Found ${option_ref_type}: ${option_ref_value}" >&2
+        elif _findRef "heads/${option_ref_value}-wip" ; then
+            option_ref_type='branch'
+            option_ref_value="${option_ref_value}-wip"
+            echo "ℹ️  Found ${option_ref_type}: ${option_ref_value}" >&2
+        else
+            {
+                echo "ℹ️  Reviewed:"
+                for x in "${_revMarkers[@]}" ; do
+                    echo "  •  $x"
+                done
+            } >&2
+            FATAL_FAILURE_NO_RETURN "Neither tag:{$option_ref_value} nor branch:${option_ref_value} nor branch:${option_ref_value}-wip could be found in the repository '$git_url'"
+        fi
+
+        git_ref="${option_ref_type}:${option_ref_value}"
+    fi
+
     if [[ -z "${git_ref}" ]] ; then
         url_part="refs/heads/main"
     elif [[ "${git_ref}" == "branch:"* ]]; then
@@ -160,8 +201,8 @@ function ensure_installed_direct_if_needed()
         url_part="refs/tags/${git_ref#tag:}"
     elif [[ "${git_ref}" == "hash:"* ]]; then
         url_part="${git_ref#hash:}"
-   else
-        FATAL_FAILURE_NO_RETURN "Invalid format for git_ref: ${git_ref@Q}.\nExpected formats:\n • branch:<branch_name>\n • tag:<tag_name>\n • hash:<hash_value> • ver:<version>"
+    else
+        FATAL_FAILURE_NO_RETURN "Invalid format for git_ref: ${git_ref@Q}.\nExpected formats:\n • branch:<branch_name>\n • tag:<tag_name>\n • hash:<hash_value>\n • ver:<version>"
     fi
 
     local exe_url="${git_url#git@}"
