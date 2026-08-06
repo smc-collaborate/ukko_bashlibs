@@ -63,7 +63,7 @@ function ukkoBashLibsInstall()
             _ukko_lib_reason="git-shared-checkout (${download_refNote:-})"
         else
             echo "❌ Failed to find or download 'ukko_bashlibs' library.  Searched in parent directories and attempted to download with git-shared-checkout." >&2
-            echo "    Suggestion: Consider deleting 'git-shared-checkout' if this is causing issues"
+            echo "    Suggestion: An older version of 'git-shared-checkout' may be causing issues.  Consider 'git-shared-checkout --uninstall' before re-running."
             return 1
         fi
     #|No Local|
@@ -73,6 +73,7 @@ function ukkoBashLibsInstall()
     #|No Local|        do_ensure_link "$UKKO_BASHLIBS_LOCAL_DIR" "$UKKO_BASHLIBS_DIR" || echo "❌ Failed to create link from '${UKKO_BASHLIBS_LOCAL_DIR}' to '${UKKO_BASHLIBS_DIR}'" >&2
     #|No Local|    fi
     #|No Local| fi
+    PATH="${UKKO_BASHLIBS_DIR%/}/install_/_runPaths:$PATH"
 }
 
 function _searchParentPath()
