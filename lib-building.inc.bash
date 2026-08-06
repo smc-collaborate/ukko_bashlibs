@@ -178,7 +178,7 @@ function do_completeBuildAndTesting()
             echo "Process completed in host environment with success"
             echo "Verifying that in the docker environments: ${VERIFY_ON_BUILD_ENVIRONMENTS}"
 
-            run_cmd=(do-run-in-docker)
+            run_cmd=("${UKKO_BASHLIBS_DIR%/}/part_do-run-in-docker/do-run-in-docker")
             if [[ "$option_with_docker" == 'all' ]] ; then
                 run_cmd+=("$VERIFY_ON_BUILD_ENVIRONMENTS" "--exit=yes")
             elif  [[ "$option_with_docker" == 'dry-run' ]] ; then
