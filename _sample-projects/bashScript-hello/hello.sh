@@ -33,5 +33,6 @@ function app_run()
         echo "Said hello to the world"
     fi
 }
+
 # shellcheck source=/dev/null
-source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/libs/shim-lib-app.inc.bash"
+source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/libs/_loader-shim.inc.bash"
