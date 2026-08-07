@@ -95,9 +95,9 @@ function set_PYTHON_ENV_HERE()
     PYTHON_ENV_HERE="$(realpath -m "${startPath%/}")"
     local counter=0
     while true ; do
-        readarray -t _found < <(find "${PYTHON_ENV_HERE%/}" -maxdepth 1 -type f -name "requirements*.txt") || true
+        readarray -t _found < <(find "${PYTHON_ENV_HERE%/}" -maxdepth 1 -type f -name "requirements*.txt" 2>/dev/null) || true
         [[ "${#_found[@]}" -gt 0 ]] && return 0
-        readarray -t _found < <(find "${PYTHON_ENV_HERE%/}/requirements" -maxdepth 1 -type f -name "requirements*.txt") || true
+        readarray -t _found < <(find "${PYTHON_ENV_HERE%/}/requirements" -maxdepth 1 -type f -name "requirements*.txt" 2>/dev/null) || true
         [[ "${#_found[@]}" -gt 0 ]] && return 0
         if [[ "${PYTHON_ENV_HERE}" == "/" ]] || [[ -z "${PYTHON_ENV_HERE}" ]] ; then
             _failAtLocation "/"
