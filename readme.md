@@ -1,4 +1,4 @@
-# `ukko_bashlibs` -- An old man's collection of bash utilities  (`v0.0.7`) #
+# `ukko_bashlibs` -- An old man's collection of bash utilities  (`v0.0.8-wip`) #
 
 Release Checklist:  **`install/do-run-tests.sh`**
 

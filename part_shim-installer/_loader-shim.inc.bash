@@ -3,7 +3,7 @@
 #
 # SHIM Template for loading ukko_bashlibs in a way that is compatible with both direct sourcing and via git-shared-checkout
 #
-# Rev v0.0.5
+# Rev v0.0.6d
 #
 # After sourcing this file:
 #    * `UKKO_BASHLIBS_DIR` is the actual directory of the ukko_bashlibs
@@ -22,9 +22,9 @@
 # │ source "$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")/libs/.loader-shim.inc.bash"
 # ╰─────────────────────────────────────────────────────────────────────────────────────
 #
-export UKKO_SHIM_VERSION=v0.0.5
+export UKKO_SHIM_VERSION=v0.0.6d
 
-UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.7
+UKKO_BASHLIBS_REF_PREFERRED=ver:v0.0.8
 
 ##############################################
 #
@@ -110,7 +110,7 @@ function _downloadItFromCloud()
     fi
     download_refNote="ref '${UKKO_BASHLIBS_REF}' from ${UKKO_BASHLIBS_URL}"
 
-    if ! ensure_installed_direct_if_needed git-shared-checkout "$UKKO_BASHLIBS_URL" "${UKKO_BASHLIBS_REF}" ; then
+    if ! ensure_installed_direct_if_needed part_git-shared-checkout/git-shared-checkout "$UKKO_BASHLIBS_URL" "${UKKO_BASHLIBS_REF}" ; then
         echo "❌ Failed to install 'git-shared-checkout' from ${UKKO_BASHLIBS_URL} with ref '${UKKO_BASHLIBS_REF}'" >&2
         download_refNote+=" | ❌  FAILED"
         return 1
@@ -174,7 +174,7 @@ function ensure_installed_direct_if_needed()
                     echo "  •  $x"
                 done
             } >&2
-            FATAL_FAILURE_NO_RETURN "Neither tag:{$option_ref_value} nor branch:${option_ref_value} nor branch:${option_ref_value}-wip could be found in the repository '$git_url'"
+            FATAL_FAILURE_NO_RETURN "Neither tag:${option_ref_value} nor branch:${option_ref_value} nor branch:${option_ref_value}-wip could be found in the repository '$git_url'"
         fi
 
         git_ref="${option_ref_type}:${option_ref_value}"
