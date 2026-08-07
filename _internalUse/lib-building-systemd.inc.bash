@@ -4,7 +4,8 @@
 function do_serviceInstall_orClean()
 {
     exe_name="${1:-}"
-    exe_full_path="$(realpath -m "$2")"
+    exe_full_path="$2"
+    [[ "$exe_full_path" == "/"* ]] || exe_full_path="$(realpath -m "$exe_full_path")"
 
     shift 2 || true # Remove the first two arguments, so that $@ now contains only the arguments to the service executable
 
@@ -44,6 +45,9 @@ function do_serviceInstall_py_orClean()
 {
     local script="${1:-}"
     shift 1
+
+
+    [[ -z "${PYTHON_ENV_HERE:-}" ]]  && do_setupPython3 ''
 
     [[ -f "${script}" ]] || FATAL_FAILURE_NO_RETURN "Python Script not found: $(displayPath "${script}")"
 
