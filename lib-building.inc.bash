@@ -514,6 +514,7 @@ function runTests()
 
 BUILD_FUNCS_DIR="$(dirname "$(realpath -m "${BASH_SOURCE[0]}")")"
 
+export INSTALL_DIR="${HOME%/}/.local/bin" ; [[ "$EUID" -eq 0 ]] && INSTALL_DIR="/usr/local/bin"
 
 source "${BUILD_FUNCS_DIR%/}/_internalUse/lib-git.inc.bash"
 source "${BUILD_FUNCS_DIR%/}/_internalUse/lib-building-ros.inc.bash"
