@@ -271,10 +271,10 @@ function do_pyInstall_orClean()
         echo ''
         if [[ -n "${_PYAPP_ENV}" ]] ; then
             # shellcheck disable=SC2016
-            echo '"${PYAPP_ENV}/bin/python" "${PYAPP_RUN}"' "$@" '"$@"'
+            echo '"${PYAPP_ENV}/bin/python"' "${INSTALLER_PYTHON_RUN_FLAGS:-}" '"${PYAPP_RUN}"' "$@" '"$@"'
         else
             # shellcheck disable=SC2016
-            echo 'python3                   "${PYAPP_RUN}"' "$@" '"$@"'
+            echo 'python3                 '  "${INSTALLER_PYTHON_RUN_FLAGS:-}" '"${PYAPP_RUN}"' "$@" '"$@"'
         fi
     } > "$_PYAPP_INSTALL_SOURCE"
     chmod +x "$_PYAPP_INSTALL_SOURCE"
