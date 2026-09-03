@@ -49,6 +49,12 @@ function install_and_start_service()
         if [[ -n "$option_fname_service" ]] ; then
             cat "$option_fname_service"
         else
+            execStart="${executable_and_args[*]@Q}"
+            if [[ "${execStart}" == *"/do-run'" ]] ; then
+                execStop="${execStart%/do-run\'}/do-kill-running'"
+            else
+                execStop=""
+            fi
             echo "[Unit]"
             echo "Description=${serviceName}"
             echo "After=network.target"
@@ -56,7 +62,8 @@ function install_and_start_service()
             echo "[Service]"
             [[ -n "$option_user"        ]] && echo "User=${option_user}"
             [[ -n "$option_working_dir" ]] && echo "WorkingDirectory=${option_working_dir}"
-            echo "ExecStart=${executable_and_args[*]@Q}"
+            echo "ExecStart=${execStart}"
+            [[ -n "$execStop" ]] && echo "ExecStop=${execStop}"
             echo "Restart=always"
             echo "RestartSec=8"
             echo ""
