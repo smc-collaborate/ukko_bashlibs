@@ -107,6 +107,7 @@ function app_load_param_defaults()
 
 function app_load_param_direct_value()
 {
+
     option_direct_values+=("$1")
     return 0
 }
@@ -458,21 +459,21 @@ function doActions()
 
         found_list=""
         if [[ "$(type -t apps_checkSourceValidity)"          == 'function' ]] ; then
-            apps_checkSourceValidity || FATAL_FAILURE_NO_RETURN "Source validity check failed."
+            apps_checkSourceValidity "${option_direct_values[@]}" || FATAL_FAILURE_NO_RETURN "Source validity check failed."
         fi
         if [[ "$(type -t pre_doInstallOrClean)"              == 'function' ]] ; then
-            pre_doInstallOrClean || FATAL_FAILURE_NO_RETURN "Failed to install pre-installation dependencies."
+            pre_doInstallOrClean "${option_direct_values[@]}" || FATAL_FAILURE_NO_RETURN "Failed to install pre-installation dependencies."
         fi
         if [[ "$(type -t apps_doBuildOrClean)"               == 'function' ]] ; then
             found_list+='[apps_doBuildOrClean]'
-            apps_doBuildOrClean || FATAL_FAILURE_NO_RETURN "apps_doBuildOrClean() failed"
+            apps_doBuildOrClean "${option_direct_values[@]}" || FATAL_FAILURE_NO_RETURN "apps_doBuildOrClean() failed"
         fi
         if [[ "$(type -t apps_doInstallOrClean)"             == 'function' ]] ; then
             found_list+='[apps_doInstallOrClean]'
-            apps_doInstallOrClean || FATAL_FAILURE_NO_RETURN "apps_doInstallOrClean() failed"
+            apps_doInstallOrClean "${option_direct_values[@]}" || FATAL_FAILURE_NO_RETURN "apps_doInstallOrClean() failed"
         fi
         if  [[ "$(type -t apps_doInstallTestingDependencies)" == 'function' ]] && [[ "$option_with_tests" != 'no' ]] ; then
-            apps_doInstallTestingDependencies || FATAL_FAILURE_NO_RETURN "apps_doInstallTestingDependencies() failed"
+            apps_doInstallTestingDependencies "${option_direct_values[@]}" || FATAL_FAILURE_NO_RETURN "apps_doInstallTestingDependencies() failed"
         fi
 
         if [[ -z "${found_list}" ]] ; then

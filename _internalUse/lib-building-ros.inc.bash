@@ -122,13 +122,13 @@ function do_pyRosFile()
     export ROS_SOURCING=( "source /opt/ros/${ROS_DISTRO}/setup.bash" )
     export ROS_PACKAGES=()
 
-    do_rosPackages "${pkg_args[@]}"
+    do_rosPackages_paths "${pkg_args[@]}"
 
     do_pyInstall_orClean "$py_file" --source-start "${ROS_SOURCING[@]}" --source-end "${py_run_params[@]}" "${py_run_params[@]}"
 }
 
 # shellcheck disable=SC2317
-function do_rosPackages()
+function do_rosPackages_paths()
 {
     setRosDistroIfNeeded
 
@@ -147,7 +147,7 @@ function do_rosPackages()
     for package_dir in "$@" ; do
 
         if [[ ! -d "$package_dir" ]] ; then
-            echo "❌  do_rosPackages : Failed to change directory to '$package_dir'" >&2
+            echo "❌  do_rosPackages_paths : Failed to change directory to '$package_dir'" >&2
             return 1
         fi
 
@@ -188,4 +188,32 @@ function do_rosPackages()
             popd &>/dev/null || true
         fi
     done
+}
+
+
+# shellcheck disable=SC2317
+function do_rosPackages_named()
+{
+    setRosDistroIfNeeded
+
+    [[ -z "${ROS_PACKAGES:-}" ]] && export ROS_PACKAGES=()
+    [[ -z "${ROS_SOURCING:-}" ]] && export ROS_SOURCING=( "source /opt/ros/${ROS_DISTRO}/setup.bash" )
+
+    if [[ "$AM_CLEANING" == 'yes' ]] ; then
+        echo "   Cleaning ROS2 build artifacts"
+        {
+            find . -type d -name build
+            find . -type d -name install
+            find . -type d -name log
+            find . -type d -name __pycache__
+        }  | forceDelete "        "
+    else
+        echo "   Building ROS2 packages: $*"
+        set +u
+        # shellcheck disable=SC1090
+        source "/opt/ros/${ROS_DISTRO}/setup.bash"
+        set -u
+        rosdep install -i --from-paths .  --ignore-src -r -y
+        colcon build --packages-select "$@"
+    fi
 }
