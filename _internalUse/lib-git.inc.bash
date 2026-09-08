@@ -13,43 +13,80 @@ function git_with_location_params_nice()
 }
 
 
+function installPkgIfNeeded_gitlfs()
+{
+    [[ "${AM_CLEANING:-}" == 'yes' ]] && return 0
+    if ! git-lfs --version 2>/dev/null ; then
+        echo "⚡  git-lfs needs to be installed"
+        installPkgIfNeeded curl
+        curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh > /tmp/git-lfs-deb.sh
+        sudoIfNeeded chmod +x /tmp/git-lfs-deb.sh
+        sudoIfNeeded apt-get install -y git-lfs
+        git lfs >/dev/null 2>/dev/null || git lfs install
+    fi
+}
+
+
+
 function do_gitLfsCheck()
 {
     [[ "${AM_CLEANING:-}" == 'yes' ]] && return 0
-    local file_name="$1"
+    local filename="$1"
     local expected_size="${2:-}"
 
-    if [[ ! -f "${file_name}" ]] ; then
-        echo "❌ FAIL FAILURE: File not found: ${file_name}"
+    if [[ ! -f "${filename}" ]] ; then
+        echo "❌ FAIL FAILURE[git-lfs check]: File not found: ${filename}"
         exit 1
     fi
 
-    local actual_size
-    actual_size="$(stat -c %s "${file_name}")"
+    function _filesizeCheck()
+    {
+        local option="${1:-}"
+
+        local actual_size
+        actual_size="$(stat -c %s "${filename}")"
+
+        local fail_icon="⚡  "
 
 
-    if [[ -z "${expected_size}" ]] ; then
-        [[ "$actual_size" -gt 1024 ]] && return 0
+        [[ "$option" == 'echo-if-successful' ]] && fail_icon="❌  "
 
-        echo "❌ $file_name is only $actual_size bytes long, which seems too small"
-    else
-        [[ "${actual_size}" == "${expected_size}" ]] && return 0
+        if [[ -z "${expected_size}" ]] ; then
+            if [[ "$actual_size" -gt 1024 ]] ; then
+                [[ "$option" == 'echo-if-successful' ]] && echo "✓  $filename is ≥ 1kiB in size - git lfs appears to be used correctly"
+                return 0
+            fi
+            echo "$fail_icon git-lfs check: $filename is only $actual_size bytes long, which seems too small"
+            return 1
+        else
+            if [[ "${actual_size}" == "${expected_size}" ]] ; then
+                [[ "$option" == 'echo-if-successful' ]] && echo "✓  $filename is $expected_size bytes in size - git lfs appears to be used correctly"
+                return 0
+            fi
 
-        echo "❌ $file_name is $actual_size bytes long instead of $expected_size"
-    fi
-        echo "This is usually caused by a cloning the repository without git-lfs installed"
-        echo ""
-        echo "To install git-lfs:"
-        echo "╭───────────────────────────────────────────────────────────────────────────────────────────────────╮"
-        echo "│ curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash     │"
-        echo "│ sudo apt-get install git-lfs                                                                      │"
-        echo "│ git lfs install                                                                                   │"
-        echo "╰───────────────────────────────────────────────────────────────────────────────────────────────────╯"
-        echo ""
-        echo "After that, run: git lfs pull     -or- reclone the repository"
-        exit 13
- }
+            echo "$fail_icon git-lfs check: $filename is $actual_size bytes long instead of $expected_size"
+            return 1
+        fi
 
+        return 1
+    }
+
+    _filesizeCheck && return 0
+
+
+    #################
+    # Fix the issue
+    #
+    installPkgIfNeeded_gitlfs
+    git lfs pull
+
+    _filesizeCheck 'echo-if-successful' && return 0
+
+    #################
+    #
+    echo "❌ FAIL FAILURE[git-lfs check]: Recovery was not successful"
+    exit 1
+}
 
 function do_ensure_linked_git_checkout()
 {
