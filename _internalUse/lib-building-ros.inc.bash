@@ -214,6 +214,6 @@ function do_rosPackages_named()
         source "/opt/ros/${ROS_DISTRO}/setup.bash"
         set -u
         rosdep install -i --from-paths .  --ignore-src -r -y
-        colcon build --packages-select "$@"
+        colcon build --symlink-install --merge-install --packages-select "$@"
     fi
 }
