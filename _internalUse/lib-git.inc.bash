@@ -235,14 +235,15 @@ function installFromGit()
     return 1
 }
 
+
 function git_failIfSubmodulesArentCloned()
 {
 
     # shellcheck disable=SC1091
     if git -C "${1}" submodule status --recursive 2>/dev/null | grep '^-' ; then
         echo ""
-        echo -e "⚠️  Submodules not loaded.  Please use: '${COLOUR[VIVID_BLUE_USED]:-}$(git_with_location_params_nice "${1}") submodule update --init --recursive${COLOUR[OFF_USED]:-}'"
-        echo    "    (You could also have used 'git clone --recurse-submodules' when cloning originally)"
+        echo -e "${COLOUR[VIVID_RED_USED]}⚠️  Submodules not loaded.  Please use: ${COLOUR[VIVID_BLUE_USED]:-}$(git_with_location_params_nice "${1}") submodule update --init --recursive${COLOUR[OFF_USED]:-}"
+        echo -e "${COLOUR[VIVID_RED_USED]}    (You could also have used 'git clone --recurse-submodules' when cloning originally)${COLOUR[OFF_USED]:-}"
         exit 3
     fi
     return 0
