@@ -281,24 +281,6 @@ function do_pyInstall_orClean()
 
     echo "    • Created: $(displayPath "$_PYAPP_INSTALL_SOURCE") → $(displayPath "$_PYAPP_RUN")"
     do_dumpInstalledExe "$_exe_name"
-
-
-    local _linksDir="${PROJ_DIR%/}/_links"
-    if [[ -d "$_linksDir" ]] ; then
-        {
-            head -n -1 < "$_PYAPP_INSTALL_SOURCE"
-
-            echo "echo '########################'"
-            echo "echo '# Environment for $_exe_name'"
-            echo "echo '#'"
-            echo "env | sort"
-            echo "echo '#'"
-            echo "echo '########################'"
-
-        } > "${_linksDir%/}/create_run_env_${_exe_name}.inc.bash"
-    fi
-
-
 }
 
 

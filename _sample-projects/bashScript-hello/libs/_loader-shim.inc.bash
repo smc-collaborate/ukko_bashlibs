@@ -76,7 +76,7 @@ function ukkoBashLibsInstall()
     #|No Local|        do_ensure_link "$UKKO_BASHLIBS_LOCAL_DIR" "$UKKO_BASHLIBS_DIR" || echo "❌ Failed to create link from '${UKKO_BASHLIBS_LOCAL_DIR}' to '${UKKO_BASHLIBS_DIR}'" >&2
     #|No Local|    fi
     #|No Local| fi
-    PATH="${UKKO_BASHLIBS_DIR%/}/install/_runPaths:$PATH"
+    PATH="${UKKO_BASHLIBS_DIR%/}/installer/_runPaths:$PATH"
 }
 
 function _searchParentPath()

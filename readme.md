@@ -1,6 +1,6 @@
 # `ukko_bashlibs` -- An old man's collection of bash utilities  (`v0.0.8-wip`) #
 
-Release Checklist:  **`install/do-run-tests.sh`**
+Release Checklist:  **`installer/do-run-tests.sh`**
 
 ## Parts ##
 
@@ -65,7 +65,7 @@ However, a simple self-contained test is:
 
 find _sample-projects -name 'do-build-and-install.sh' -exec {} --with-tests --with-docker \;
 
-./install/do-run-tests.sh
+./installer/do-run-tests.sh
 
 ```
 
