@@ -236,11 +236,48 @@ function installFromGit()
 
 function git_failIfSubmodulesArentCloned()
 {
+    local location="$1"
     # shellcheck disable=SC1091
-    if git -C "${1}" submodule 2>/dev/null | grep '^-' ; then
-        echo -e "⚠️  Submodules not loaded.  Please use: '${COLOUR[VIVID_BLUE_USED]:-}$(git_with_location_params_nice "${1}") submodule update --init --recursive${COLOUR[OFF_USED]:-}'"
-        echo    "    (You could also have used 'git clone --recurse-submodules' when cloning originally)"
+    readarray -t _submodules < <(git -C "$location" submodule status --recursive 2>/dev/null)
+
+    _notLoaded=()
+    _updateAvailable=()
+    for x in "${_submodules[@]}" ; do
+        [[ "$x" == "-"* ]] && _noteLoaded+=( "$x" )
+        [[ "$x" == "+"* ]] && _updateAvailable+=( "$x" )
+    done
+
+    function dumpHelp()
+    {
+        local location="$1"
+        local topmsg="$2"
+        local secondline="${3:-}"
+        local colour="${4:-}"
+
+        local colourStart=""
+        local colourStop=""
+
+        if [[ -n "$colour" ]] ; then
+            colourStart="${COLOUR[$colour]:-}"
+            colourStop="${COLOUR[OFF_USED]:-}"
+        fi
+
+        echo -e "${colourStart}${topmsg}${colourStop}: ${COLOUR[VIVID_BLUE_USED]:-}$(git_with_location_params_nice "$location") submodule update --init --recursive${COLOUR[OFF_USED]:-}"
+        [[ -n "$secondline" ]] && echo -e "${colourStart}    $secondline${colourStop}"
+        echo -e ""
+        echo -e "${colourStart}    Key: -= Unloaded.   +=Update available${colourStop}"
+        for x in "${_submodules[@]}" ; do
+            echo -e "${colourStart}      $x${colourStop}"
+        done
+    }
+    if [[ "${#_notLoaded[@]}" != 0 ]] ; then
+        dumpHelp "$1" "⚠️  Submodules not loaded.  Please use" "(You could also have used 'git clone --recurse-submodules' when cloning originally)" "VIVID_RED_USED"
+        echo    ""
         exit 3
+    fi
+    if [[ "${#_updateAvailable[@]}" != 0 ]] ; then
+        dumpHelp "$1" "ℹ️  Submodule updates are available.  You can use"
+        echo    ""
     fi
     return 0
 }
