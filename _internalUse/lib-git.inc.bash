@@ -243,7 +243,7 @@ function git_failIfSubmodulesArentCloned()
     _notLoaded=()
     _updateAvailable=()
     for x in "${_submodules[@]}" ; do
-        [[ "$x" == "-"* ]] && _noteLoaded+=( "$x" )
+        [[ "$x" == "-"* ]] && _notLoaded+=( "$x" )
         [[ "$x" == "+"* ]] && _updateAvailable+=( "$x" )
     done
 
