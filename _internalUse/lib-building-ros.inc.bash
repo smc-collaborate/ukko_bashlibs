@@ -217,3 +217,18 @@ function do_rosPackages_named()
         colcon build --symlink-install --merge-install --packages-select "$@"
     fi
 }
+
+# shellcheck disable=SC2317
+function do_rosSource()
+{
+    if [[ -n "$*" ]] ; then
+        do_rosEnsureDistro "$@"
+    fi
+    setRosDistroIfNeeded
+
+    echo "   Sourcing ROS Distro: $ROS_DISTRO"
+    set +u
+    # shellcheck disable=SC1090
+    source "/opt/ros/${ROS_DISTRO}/setup.bash"
+    set -u
+}
