@@ -221,22 +221,24 @@ function do_completeBuildAndTesting()
     #
     # Step 2 - Then Build
     #
-    if [[ "${_fullResult}" == 0 ]] && [[ "${_doBuild}" = 'yes' ]] ; then
-        doActions "AM_CLEANING=no"  || _fullResult="$?"
-    fi
+    if [[ "${_doBuild}" = 'yes' ]] ; then
+        if [[ "${_fullResult}" == 0 ]]  ; then
+            doActions "AM_CLEANING=no"  || _fullResult="$?"
+        fi
 
-    #
-    # Step 3 - Run Tests if requested
-    #
-    if [[ "$_fullResult" == 0 ]] && [[ "${_doBuild}" == 'yes' ]] && [[ "$option_with_tests" != 'no' ]] ; then
-        runTests || _fullResult="$?"
-    fi
+        #
+        # Step 3 - Run Tests if requested
+        #
+        if [[ "$_fullResult" == 0 ]]  && [[ "$option_with_tests" != 'no' ]] ; then
+            runTests || _fullResult="$?"
+        fi
 
 
-    if [[ "$_fullResult" == 0 ]] && [[ "${_doBuild}" == 'yes' ]] ; then
-        echo -e "   Build and testing completed successfully${msg_suffix}"
-    else
-        echo -e "   Build and/or testing failed with result: $_fullResult${msg_suffix}"
+        if [[ "$_fullResult" == 0 ]]  ; then
+            echo -e "   Build and testing completed successfully${msg_suffix}"
+        else
+            echo -e "   Build and/or testing failed with result: $_fullResult${msg_suffix}"
+        fi
     fi
     return "$_fullResult"
 }
