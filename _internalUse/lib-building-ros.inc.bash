@@ -192,6 +192,19 @@ function do_rosPackages_paths()
 
 
 # shellcheck disable=SC2317
+function do_rosClean()
+{
+    echo "   Cleaning ROS2 build artifacts"
+    {
+        find . -type d -name build
+        find . -type d -name install
+        find . -type d -name log
+        find . -type d -name __pycache__
+    }  | forceDelete "        "
+}
+
+
+# shellcheck disable=SC2317
 function do_rosPackages_named()
 {
     setRosDistroIfNeeded
@@ -200,13 +213,7 @@ function do_rosPackages_named()
     [[ -z "${ROS_SOURCING:-}" ]] && export ROS_SOURCING=( "source /opt/ros/${ROS_DISTRO}/setup.bash" )
 
     if [[ "$AM_CLEANING" == 'yes' ]] ; then
-        echo "   Cleaning ROS2 build artifacts"
-        {
-            find . -type d -name build
-            find . -type d -name install
-            find . -type d -name log
-            find . -type d -name __pycache__
-        }  | forceDelete "        "
+        do_rosClean
     else
         echo "   Building ROS2 packages: $*"
         set +u
@@ -221,14 +228,16 @@ function do_rosPackages_named()
 # shellcheck disable=SC2317
 function do_rosSource()
 {
-    if [[ -n "$*" ]] ; then
-        do_rosEnsureDistro "$@"
-    fi
-    setRosDistroIfNeeded
+    if [[ "$AM_CLEANING" == 'yes' ]] ; then
+        do_rosClean
+    else
+        [[ -n "$*" ]] && do_rosEnsureDistro "$@"
+        setRosDistroIfNeeded
 
-    echo "   Sourcing ROS Distro: $ROS_DISTRO"
-    set +u
-    # shellcheck disable=SC1090
-    source "/opt/ros/${ROS_DISTRO}/setup.bash"
-    set -u
+        echo "   Sourcing ROS Distro: $ROS_DISTRO"
+        set +u
+        # shellcheck disable=SC1090
+        source "/opt/ros/${ROS_DISTRO}/setup.bash"
+        set -u
+    fi
 }

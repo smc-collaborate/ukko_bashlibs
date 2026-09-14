@@ -556,6 +556,7 @@ function forceDelete()
     local result='0'
     local prefix="${1:-}"
     while IFS= read -r target; do
+        echo "   forceDelete: $target"
         if [[ -e "$target" ]] ; then
 
             rm -rf "$target" &>/dev/null || true
