@@ -9,7 +9,7 @@
 # shellcheck disable=SC2317
 function do_setupPython3()
 {
-    do_setupPython3_Done='yes'
+    do_setupPython3_Done="yes(Cleaning=$AM_CLEANING)"
     installPkgIfNeeded python3
     if [[ "$AM_CLEANING" == 'yes' ]] ; then
         pyApp_cleanIfNeeded
@@ -65,7 +65,7 @@ function do_pythonEnvIfNeeded()
 
 function installEditablePythonPkgs()
 {
-    [[ "${do_setupPython3_Done:-}" == 'yes' ]] || do_setupPython3 ""
+    [[ "${do_setupPython3_Done:-}" == "yes(Cleaning=$AM_CLEANING)" ]] || do_setupPython3 ""
 
     [[ "${AM_CLEANING}" == 'yes' ]] && return 0
 
