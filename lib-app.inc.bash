@@ -511,10 +511,10 @@ function colours_show()
                         elif [[ "$colourName" == *"_FORCED" ]]; then
                             offCode="OFF_FORCED"
                         else
-                            offCode="OFF"
+                            offCode="OFF_USED"
                         fi
 
-                        printf ' • echo -e %-34s%-22s%-28s → ' "\"\${COLOUR[$colourName]:-}\"" "${colourName@Q}" "\"\${COLOUR[$offCode]:-}\""
+                        printf ' • echo -e %-40s%-30s%-28s → ' "\"\${COLOUR[$colourName]:-}\"" "${colourName@Q}" "\"\${COLOUR[$offCode]:-}\""
                         echo -e "${COLOUR[$colourName]}$colourName${COLOUR[$offCode]:-}"
 
                     fi

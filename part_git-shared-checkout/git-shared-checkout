@@ -840,7 +840,7 @@ function doRun()
         [[ "$silent_if_ok" == "yes" ]] && return 0
         echo "      ✓ Ran${exitCodeNote}: $*"
     else
-        echo "      ✗ Ran${exitCodeNote}: $*"UK
+        echo "      ✗ Ran${exitCodeNote}: $*"
         echo "        ❌ Responded with: $result"
         # shellcheck disable=SC2034
         overallBashResult="$result"

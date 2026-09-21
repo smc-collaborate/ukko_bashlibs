@@ -32,7 +32,7 @@ function do_systemdEntry()
     if [[ "${AM_CLEANING}" == 'yes' ]] ; then
         sudoIfNeeded "${BUILD_FUNCS_DIR%/}/_internalUse/do-install-service.sh" --remove --files "$@" || fail_msg="remove"
     else
-        sudoIfNeeded "${BUILD_FUNCS_DIR%/}/_internalUse/do-install-service.sh"          --files "$@"|| fail_msg="install"
+        sudoIfNeeded "${BUILD_FUNCS_DIR%/}/_internalUse/do-install-service.sh"          --files "$@" || fail_msg="install"
     fi
 
     [[ -z "$fail_msg" ]] && return 0

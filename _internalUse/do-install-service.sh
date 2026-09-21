@@ -119,7 +119,7 @@ function systemd_enable()
     else
         echo "      ❌  Not enabled  [$status:$returnValue]"
         overallBashResult=3
-        run-in-outline systemctl status "${name}"
+        doRun-groupedOutput systemctl status "${name}"
     fi
 
     return "$returnValue"
@@ -133,11 +133,11 @@ function install_files_and_enable_only()
         shift 1 || true
 
         if [[ "$option_remove" == "yes" ]] ; then
-             do_remove "$fname_service" || true
+            do_remove "$fname_service" || true
         else
             local name ; name="$(basename "$src_file")"
 
-            entries+=("$src_file")
+            entries+=("$name")
 
             do_ensure_file_set "/etc/systemd/system/${name}" "$src_file" || echo "❌ Failed to link ${src_file@Q} to /etc/systemd/system/${name@Q}" >&2
             # doRun "cp" "$src_file" "D" && echo "    • Installed: $name"
@@ -146,11 +146,10 @@ function install_files_and_enable_only()
 
     doRun systemctl daemon-reload
 
-    for name in "${entries[@]}" ; do
+    for src_file in "${entries[@]}" ; do
         systemd_enable "$name"
     done
 }
-
 
 if [[ "$EUID" -ne 0 ]] ; then
     echo "❌ Please run this script as root (e.g. with sudo)"

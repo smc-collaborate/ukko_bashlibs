@@ -460,7 +460,7 @@ function doRun()
         [[ "$silent_if_ok" == "yes" ]] && return 0
         echo "      ✓ Ran${exitCodeNote}: $*"
     else
-        echo "      ✗ Ran${exitCodeNote}: $*"UK
+        echo "      ✗ Ran${exitCodeNote}: $*"
         echo "        ❌ Responded with: $result"
         # shellcheck disable=SC2034
         overallBashResult="$result"
@@ -790,4 +790,101 @@ function paths_findLongestAncestor()
     else
         echo "$result"
     fi
+}
+function templateFill_CONFIG()
+{
+    #
+    # search & replace ${old} placeholders in a template file.
+    #
+    # Usage:
+    #   templateFill_CONFIG(<source_file> <destination_file> [old1=new1 ...])
+    #
+    # For every "old=new" parameter, every literal occurrence of ${old} in the
+    # source file is replaced with new, and the result is written to the
+    # destination file. The source file is left untouched.
+    #
+    # It also replaces based on environment vars prefixed with 'CONFIG_'
+
+    # Example:
+    #   templateFill_CONFIG nginx.conf.tmpl nginx.conf PORT=8080 HOST=example.com
+    #   (replaces ${PORT} -> 8080 and ${HOST} -> example.com)
+    #
+    local -   # localize `set` options to this function; auto-restored on return
+    set -euo pipefail
+
+    if ! command -v perl >/dev/null 2>&1; then
+        echo "❌  Error[templateFill_CONFIG()]: Requires 'perl', which was not found on PATH."
+        return 1
+    fi
+
+    if ! command -v perl >/dev/null 2>&1; then
+        echo "❌  Error[templateFill_CONFIG()]: Requires 'perl', which was not found on PATH."
+        return 1
+    fi
+    if [ "$#" -lt 2 ]; then
+        echo "Usage: templateFill <source_file> <destination_file> [old1=new1 ...]"
+        return 1
+    fi
+
+    local src="$1"
+    local dest="$2"
+    shift 2
+
+    if [ ! -f "$src" ]; then
+        echo "❌  Error[templateFill_CONFIG()]: source file '$src' not found."
+        return 1
+    fi
+
+    # Merge placeholder values: CONFIG_ env vars first, then CLI args (which
+    # override a same-named CONFIG_ var). Done as a merge, not two sequential
+    # replacement passes, so overriding actually works - once ${NAME} has been
+    # replaced once, a second pass has nothing left to find and "override".
+    local -A values=()
+
+    local var key value param placeholder tmp
+
+    for var in "${!CONFIG_@}"; do
+        key="$var"  # "${var#CONFIG_}"
+        [ -n "$key" ] && values["$key"]="${!var}"
+    done
+
+    for param in "$@"; do
+        if [[ "$param" != *=* ]]; then
+            echo "❌  Error[templateFill_CONFIG()]: invalid parameter '$param' (expected old=new)."
+            return 1
+        fi
+        key="${param%%=*}"
+        value="${param#*=}"
+        if [ -z "$key" ]; then
+            echo "❌  Error[templateFill_CONFIG()]: invalid parameter '$param' (empty key before '=')."
+            return 1
+        fi
+        values["$key"]="$value"
+    done
+
+    # Work on a temp file first, so the destination is only written on full success.
+    tmp="$(mktemp)"
+    trap 'rm -f "$tmp"' RETURN
+
+    cp -- "$src" "$tmp"
+
+    local summary=''
+    for key in "${!values[@]}"; do
+        value="${values[$key]}"
+
+        # ${key} is the literal placeholder we search for, e.g. ${PORT}
+        placeholder="\${${key}}"
+        [[ -n "$summary" ]] && summary+=","
+        summary+="${placeholder}→{$value}"
+        # \Q...\E treats the placeholder as a literal string (no regex metachars).
+        # The replacement side is a plain interpolated string, so $ and \ in
+        # `value` are inserted literally too.
+        PLACEHOLDER="$placeholder" REPLACEMENT="$value" perl -i -pe \
+            's/\Q$ENV{PLACEHOLDER}\E/$ENV{REPLACEMENT}/g' "$tmp"
+    done
+
+
+    cp -- "$tmp" "$dest"
+    [[ "$dest" != "/tmp/"* ]] && echo "Wrote $(displayPath "$dest")  | Replaced ${summary}"
+    return 0
 }
