@@ -107,7 +107,11 @@ function systemd_enable()
     local name="$1"
     local returnValue=0
 
-    doRun systemctl enable  "${name}" || returnValue="$?"
+    local params=()
+
+    [[ "$name" == *.timer ]] && params+=( '--now' )
+
+    doRun systemctl enable "${params[@]}" "${name}" || returnValue="$?"
 
     status=$(systemctl is-enabled "${name}") || returnValue="$?"
     if [[ "$returnValue" == 0 ]] ; then
