@@ -205,6 +205,24 @@ function do_pyInstall_orClean()
 
     local _PYAPP_RUN   ; _PYAPP_RUN="$(realpath -m "${1}")"
     local _exe_name    ; _exe_name="$(basename "$_PYAPP_RUN" '.py')"
+    local git_dir="${_PYAPP_RUN%/*}/"
+    local git_branch   ; git_branch="$(git -C "$git_dir" symbolic-ref --short -q HEAD 2>/dev/null)"
+    local git_hash     ; git_hash="$(git -C "$git_dir" describe --always --dirty --exclude='*' 2>/dev/null)"
+
+    local git_url      ; git_url="$(git -C "$git_dir" remote get-url origin 2>/dev/null)"
+
+    local _PYAPP_GIT_REV="-$git_hash"
+
+    [[ -n "$git_branch" ]] && _PYAPP_GIT_REV="${git_branch}${_PYAPP_GIT_REV}"
+
+    local git_note="$git_url (Built from $git_hash"
+
+    [[ -n "$git_branch" ]] && git_note="${git_note} on branch $git_branch"
+
+    _PYAPP_GIT_URL="${git_note})"
+
+    [[ -n "$git_url" ]] || _PYAPP_GIT_URL="(Not a git repository)"
+
     shift 1 || true # Remove the processed argument
 
     while [[ "${1:-}" == --uses-pkg=* ]] ; do
@@ -269,6 +287,9 @@ function do_pyInstall_orClean()
         #| echo 'echo " • PYAPP_RUN=\"${PYAPP_RUN}\""'
 
         echo ''
+        echo "export _PYAPP_GIT_REV=${_PYAPP_GIT_REV@Q}"
+        echo "export _PYAPP_GIT_URL=${_PYAPP_GIT_URL@Q}"
+
         if [[ -n "${_PYAPP_ENV}" ]] ; then
             # shellcheck disable=SC2016
             echo '"${PYAPP_ENV}/bin/python"' "${INSTALLER_PYTHON_RUN_FLAGS:-}" '"${PYAPP_RUN}"' "$@" '"$@"'
