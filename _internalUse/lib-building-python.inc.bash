@@ -73,13 +73,13 @@ function installEditablePythonPkgs()
 
     dir="$(git-shared-checkout "$@" )" || FATAL_FAILURE_NO_RETURN "Failed to checkout git repository"
 
-    [[  -d "${dir}/pkgs" ]] || FATAL_FAILURE_NO_RETURN "No 'pkgs' directory found in $(displayPath "${dir}")"
-    echo "Installed Editable python package at: $(displayPath "$dir"))"
+    [[  -d "${dir}/pkgs" ]] || FATAL_FAILURE_NO_RETURN "No 'pkgs' directory found in $(displayBluePath "${dir}")"
+    echo "Installed Editable python package at: $(displayBluePath "$dir"))"
 
     if [[ "$PYTHON_ENV_HERE" == "_none_" ]] ; then
         echo "⚠️  Warning - no virtual python environment - You will have to manage the package '${1##*/}' yourself"
     else
-        pip -v install -e "${dir}/pkgs/" || FATAL_FAILURE_NO_RETURN "Failed to install editable Python packages from $(displayPath "${dir}/pkgs")"
+        pip -v install -e "${dir}/pkgs/" || FATAL_FAILURE_NO_RETURN "Failed to install editable Python packages from $(displayBluePath "${dir}/pkgs")"
     fi
 
     do_makeHelperLink "$dir" "${1##*/}"
