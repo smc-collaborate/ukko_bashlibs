@@ -213,7 +213,7 @@ function do_pyInstall_orClean()
 
     local _PYAPP_GIT_REV="-$git_hash"
 
-    [[ -n "$git_branch" ]] && _PYAPP_GIT_REV="${git_branch}${_PYAPP_GIT_REV}"
+    [[ -n "$git_branch" ]] && [[ "$git_branch" != "main" ]] && _PYAPP_GIT_REV="${git_branch}${_PYAPP_GIT_REV}"
 
     local git_note="$git_url (Built from $git_hash"
 
